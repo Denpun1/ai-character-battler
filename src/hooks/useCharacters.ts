@@ -24,11 +24,12 @@ export function useCharacters() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newCharacters));
   };
 
-  const addCharacter = (name: string, skills: string, color: string = 'var(--primary)') => {
+  const addCharacter = (name: string, skills: string, item: string = '', color: string = 'var(--primary)') => {
     const newCharacter: Character = {
       id: crypto.randomUUID(),
       name,
       skills,
+      item,
       color,
       createdAt: Date.now(),
     };
