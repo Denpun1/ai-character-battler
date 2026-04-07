@@ -1,48 +1,85 @@
 import { useState, useEffect } from 'react';
 import { Item } from '@/types/item';
-
-const STORAGE_KEY = 'ai_character_battler_items';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@clerk/nextjs';
 
 export function useItems() {
   const [items, setItems] = useState<Item[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const { userId } = useAuth();
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        setItems(JSON.parse(stored));
-      } catch (e) {
-        console.error('Failed to parse items', e);
+    async function fetchItems() {
+      if (!userId) {
+        setItems([]);
+        setIsLoaded(true);
+        return;
       }
+      
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
+        const mapped = data.map(d => ({
+          id: d.id,
+          name: d.name,
+          description: d.description,
+          createdAt: new Date(d.created_at).getTime(),
+        }));
+        setItems(mapped);
+      } else {
+        console.error('Fetch items error', error);
+      }
+      setIsLoaded(true);
     }
-    setIsLoaded(true);
-  }, []);
+    fetchItems();
+  }, [userId]);
 
-  const saveItems = (newItems: Item[]) => {
-    setItems(newItems);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
+  const addItem = async (name: string, description: string) => {
+    if (!userId) return;
+    const { data, error } = await supabase
+      .from('items')
+      .insert([{ user_id: userId, name, description }])
+      .select()
+      .single();
+
+    if (!error && data) {
+      setItems([...items, {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        createdAt: new Date(data.created_at).getTime(),
+      }]);
+    }
   };
 
-  const addItem = (name: string, description: string) => {
-    const newItem: Item = {
-      id: crypto.randomUUID(),
-      name,
-      description,
-      createdAt: Date.now(),
-    };
-    saveItems([...items, newItem]);
+  const editItem = async (id: string, name: string, description: string) => {
+    if (!userId) return;
+    const { error } = await supabase
+      .from('items')
+      .update({ name, description })
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (!error) {
+      setItems(items.map(item => item.id === id ? { ...item, name, description } : item));
+    }
   };
 
-  const editItem = (id: string, name: string, description: string) => {
-    const newItems = items.map(item => 
-      item.id === id ? { ...item, name, description } : item
-    );
-    saveItems(newItems);
-  };
+  const deleteItem = async (id: string) => {
+    if (!userId) return;
+    const { error } = await supabase
+      .from('items')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
 
-  const deleteItem = (id: string) => {
-    saveItems(items.filter(item => item.id !== id));
+    if (!error) {
+      setItems(items.filter(item => item.id !== id));
+    }
   };
 
   return {
