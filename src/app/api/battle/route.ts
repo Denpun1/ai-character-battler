@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 
 export async function POST(req: NextRequest) {
   try {
-    const { p1, p2, systemPrompt, model } = await req.json();
+    const { p1, p2, systemPrompt, model, temperature } = await req.json();
 
     if (!p1 || !p2) {
       return new Response(JSON.stringify({ error: "Missing characters data" }), { status: 400 });
@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
     const selectedModel = model || 'gemini-2.5-flash';
     const basePrompt = systemPrompt || '以下の2人のキャラクターが熱いバトルを行います。展開と勝敗を出力してください。最後に「勝者: [キャラクター名]」で終わること。';
 
-    const p1ItemStr = p1.item ? `アイテム: ${p1.item}` : '';
-    const p2ItemStr = p2.item ? `アイテム: ${p2.item}` : '';
+    const p1ItemStr = p1.itemDetails ? `装備アイテム: ${p1.itemDetails.name}\n（効果: ${p1.itemDetails.description}）` : '';
+    const p2ItemStr = p2.itemDetails ? `装備アイテム: ${p2.itemDetails.name}\n（効果: ${p2.itemDetails.description}）` : '';
 
     const prompt = `
 ${basePrompt}
@@ -41,6 +41,9 @@ ${p2ItemStr}
     const response = await ai.models.generateContent({
       model: selectedModel,
       contents: prompt,
+      config: {
+        temperature: typeof temperature === 'number' ? temperature : 0.7,
+      }
     });
 
     return new Response(JSON.stringify({ result: response.text }), {

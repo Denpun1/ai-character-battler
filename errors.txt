@@ -1,0 +1,2 @@
+src/app/page.tsx(8,24): error TS2724: '"@clerk/nextjs"' has no exported member named 'SignedIn'. Did you mean 'SignIn'?
+src/app/page.tsx(8,34): error TS2305: Module '"@clerk/nextjs"' has no exported member 'SignedOut'.

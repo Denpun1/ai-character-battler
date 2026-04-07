@@ -2,7 +2,7 @@ export interface Character {
   id: string;
   name: string;
   skills: string;
-  item?: string;
+  itemId?: string;
   color?: string;
   createdAt: number;
 }

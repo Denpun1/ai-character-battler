@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useCharacters } from '@/hooks/useCharacters';
+import { useItems } from '@/hooks/useItems';
 import { useSettings } from '@/hooks/useSettings';
 import { Button } from '@/components/Button';
 import styles from './page.module.css';
@@ -11,6 +12,7 @@ function BattleArena() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { characters, isLoaded } = useCharacters();
+  const { items, isLoaded: itemsLoaded } = useItems();
   const { settings, isLoaded: settingsLoaded } = useSettings();
 
   const [p1, setP1] = useState<any>(null);
@@ -21,7 +23,7 @@ function BattleArena() {
   const [winner, setWinner] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isLoaded && settingsLoaded) {
+    if (isLoaded && settingsLoaded && itemsLoaded) {
       const id1 = searchParams.get('p1');
       const id2 = searchParams.get('p2');
       const fighter1 = characters.find(c => c.id === id1);
@@ -34,7 +36,7 @@ function BattleArena() {
       setP1(fighter1);
       setP2(fighter2);
     }
-  }, [isLoaded, settingsLoaded, characters, searchParams, router]);
+  }, [isLoaded, settingsLoaded, itemsLoaded, characters, searchParams, router]);
 
   const startFight = async () => {
     if (!p1 || !p2) return;
@@ -48,10 +50,11 @@ function BattleArena() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          p1, 
-          p2,
+          p1: { ...p1, itemDetails: items.find(i => i.id === p1.itemId) },
+          p2: { ...p2, itemDetails: items.find(i => i.id === p2.itemId) },
           systemPrompt: settings.systemPrompt,
-          model: settings.model
+          model: settings.model,
+          temperature: settings.temperature
         })
       });
 
@@ -105,7 +108,9 @@ function BattleArena() {
       <div className={styles.arena}>
         <div className={styles.fighter}>
           <div className={styles.fighterName}>{p1.name}</div>
-          {p1.item && <div className={styles.fighterItem}>Item: {p1.item}</div>}
+          {p1.itemId && items.find(i => i.id === p1.itemId) && (
+            <div className={styles.fighterItem}>Equipment: {items.find(i => i.id === p1.itemId)?.name}</div>
+          )}
         </div>
 
         <div className={styles.vsContainer}>
@@ -120,7 +125,9 @@ function BattleArena() {
 
         <div className={styles.fighter}>
           <div className={styles.fighterName}>{p2.name}</div>
-          {p2.item && <div className={styles.fighterItem}>Item: {p2.item}</div>}
+          {p2.itemId && items.find(i => i.id === p2.itemId) && (
+            <div className={styles.fighterItem}>Equipment: {items.find(i => i.id === p2.itemId)?.name}</div>
+          )}
         </div>
       </div>
 
