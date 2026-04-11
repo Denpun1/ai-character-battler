@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useSettings } from '@/hooks/useSettings';
-import { useMigration } from '@/hooks/useMigration';
 import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -19,7 +18,6 @@ export default function Home() {
   const { items, isLoaded: itemsLoaded, addItem, editItem, deleteItem } = useItems();
   const { settings, isLoaded: settingsLoaded, saveSettings } = useSettings();
   const { isSignedIn, isLoaded: isAuthLoaded } = useUser();
-  useMigration();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
   // Modals state

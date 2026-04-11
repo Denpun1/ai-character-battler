@@ -1,0 +1,18 @@
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/app/page.tsx
+	modified:   src/hooks/useCharacters.ts
+	modified:   src/hooks/useItems.ts
+	deleted:    src/hooks/useMigration.ts
+	deleted:    src/lib/supabase.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	log.txt
+	status.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
