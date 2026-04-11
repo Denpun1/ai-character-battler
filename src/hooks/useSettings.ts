@@ -6,12 +6,14 @@ export interface Settings {
   systemPrompt: string;
   model: string;
   temperature: number;
+  showThinking: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   systemPrompt: '以下の2人のキャラクターが熱いバトルを行います。設定に基づいて、臨場感のある劇的なバトルの展開と、最終的にどちらが勝つかを決定し、シナリオを出力してください。文章は小説のようなトーンで作成してください。出力要件: 1. バトル開始の状況 2. スキル・アイテムを駆使した攻防 3. クライマックス 4. 明確な勝者の宣言（最後に「勝者: [キャラクター名]」という形式で終わること）',
   model: 'gemini-2.5-flash',
   temperature: 0.7,
+  showThinking: false,
 };
 
 export function useSettings() {

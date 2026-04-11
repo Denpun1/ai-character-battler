@@ -76,3 +76,22 @@
   text-align: center;
   border-radius: 4px;
 }
+
+.thinkingBox {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: var(--secondary);
+  border-left: 4px solid var(--primary);
+  border-radius: 4px;
+  font-style: italic;
+  color: var(--foreground);
+  opacity: 0.8;
+}
+
+.thinkingHeader {
+  font-weight: bold;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  color: var(--primary);
+  opacity: 1;
+}

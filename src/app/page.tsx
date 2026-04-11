@@ -41,6 +41,7 @@ export default function Home() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('');
   const [temperature, setTemperature] = useState(0.7);
+  const [showThinking, setShowThinking] = useState(false);
 
   const handleSelectChar = (id: string) => {
     setSelectedIds(prev => {
@@ -116,12 +117,13 @@ export default function Home() {
     setSystemPrompt(settings.systemPrompt);
     setModel(settings.model);
     setTemperature(settings.temperature);
+    setShowThinking(settings.showThinking || false);
     setIsSettingsOpen(true);
   };
 
   const saveSettingsForm = (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings({ systemPrompt, model, temperature });
+    saveSettings({ systemPrompt, model, temperature, showThinking });
     setIsSettingsOpen(false);
   };
 
@@ -380,6 +382,16 @@ export default function Home() {
                   style={{ minHeight: '200px' }}
                   required
                 />
+              </div>
+              <div className={styles.formGroup}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={showThinking} 
+                    onChange={e => setShowThinking(e.target.checked)} 
+                  />
+                  AIの思考プロセスを表示する（ストリーミング出力）
+                </label>
               </div>
               <div className={styles.modalActions}>
                 <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>

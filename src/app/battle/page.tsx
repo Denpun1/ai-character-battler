@@ -54,44 +54,86 @@ function BattleArena() {
           p2: { ...p2, itemDetails: items.find(i => i.id === p2.itemId) },
           systemPrompt: settings.systemPrompt,
           model: settings.model,
-          temperature: settings.temperature
+          temperature: settings.temperature,
+          showThinking: settings.showThinking
         })
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setBattleLog(`Error: ${data.error}`);
+        let msg = 'Server error';
+        try {
+          const errData = await res.json();
+          msg = errData.error || msg;
+        } catch (e) {}
+        setBattleLog(`Error: ${msg}`);
         setIsFighting(false);
         return;
       }
 
-      const text = data.result;
-      let currentIndex = 0;
-      let currentFormat = '';
-      
-      const interval = setInterval(() => {
-        if (currentIndex < text.length) {
-          currentFormat += text[currentIndex];
-          setBattleLog(currentFormat);
-          currentIndex++;
-        } else {
-          clearInterval(interval);
-          setIsFighting(false);
-          setIsFinished(true);
+      const reader = res.body?.getReader();
+      if (!reader) {
+        setIsFighting(false);
+        return;
+      }
 
-          const match = text.match(/勝者[:：]\s*(.+)/);
-          if (match && match[1]) {
-            setWinner(match[1].trim());
-          }
-        }
-      }, 15);
+      const decoder = new TextDecoder();
+      let streamText = '';
 
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        streamText += decoder.decode(value, { stream: true });
+        setBattleLog(streamText);
+      }
+
+      setIsFighting(false);
+      setIsFinished(true);
+
+      const match = streamText.match(/勝者[:：]\s*(.+)/);
+      if (match && match[1]) {
+        setWinner(match[1].trim());
+      }
     } catch (error: any) {
       console.error(error);
       setBattleLog(`Error starting fight: ${error.message || error}`);
       setIsFighting(false);
     }
+  };
+
+  const renderLog = (logText: string) => {
+    if (!logText.includes('<think>')) return <span>{logText}</span>;
+
+    const parts = logText.split('<think>');
+    return (
+      <span>
+        {parts.map((part, index) => {
+          if (index === 0) return <span key={index}>{part}</span>;
+          
+          const closeIndex = part.indexOf('</think>');
+          if (closeIndex === -1) {
+            return (
+              <div key={index} className={styles.thinkingBox}>
+                <div className={styles.thinkingHeader}>💭 AI is thinking...</div>
+                {part}
+              </div>
+            );
+          } else {
+            const thinkContent = part.substring(0, closeIndex);
+            const restContent = part.substring(closeIndex + 8); // length of </think>
+            return (
+              <span key={index}>
+                <div className={styles.thinkingBox}>
+                  <div className={styles.thinkingHeader}>💭 Thought Process</div>
+                  {thinkContent}
+                </div>
+                {restContent}
+              </span>
+            );
+          }
+        })}
+      </span>
+    );
   };
 
   if (!p1 || !p2) return <div className={styles.container}>Loading...</div>;
@@ -138,7 +180,7 @@ function BattleArena() {
               Generating battle...
             </div>
           )}
-          {battleLog}
+          {renderLog(battleLog)}
           
           {isFinished && winner && (
             <div className={styles.winnerDeclaration}>
