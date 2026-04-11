@@ -87,9 +87,9 @@ function BattleArena() {
         }
       }, 15);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      setBattleLog("Error starting fight");
+      setBattleLog(`Error starting fight: ${error.message || error}`);
       setIsFighting(false);
     }
   };

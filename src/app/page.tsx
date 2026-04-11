@@ -44,13 +44,11 @@ export default function Home() {
 
   const handleSelectChar = (id: string) => {
     setSelectedIds(prev => {
-      if (prev.includes(id)) {
-        return prev.filter(selectedId => selectedId !== id);
-      }
       if (prev.length < 2) {
-        return [...prev, id];
+        return [...prev, id]; // Allow duplicates
       }
-      return [prev[0], id];
+      // If 2 already selected, replace the oldest one
+      return [prev[1], id];
     });
   };
 
@@ -248,12 +246,19 @@ export default function Home() {
         )}
       </div>
 
-      {selectedIds.length === 2 && (
+      {(selectedIds.length > 0) && (
         <div className={styles.battleControls}>
-          <div className={styles.selectedFighters}>
-            {characters.find(c => c.id === selectedIds[0])?.name} VS {characters.find(c => c.id === selectedIds[1])?.name}
+          <div className={styles.selectedFighters} style={{ display: 'flex', gap: '2rem', marginBottom: '1rem' }}>
+            <div>
+              <strong>Player 1:</strong> {characters.find(c => c.id === selectedIds[0])?.name || '(Not selected)'}
+              {selectedIds[0] && <button style={{ marginLeft: '1rem' }} onClick={() => setSelectedIds(prev => prev.length === 2 ? [prev[1]] : [])}>✕</button>}
+            </div>
+            <div>
+              <strong>Player 2:</strong> {characters.find(c => c.id === selectedIds[1])?.name || '(Not selected)'}
+              {selectedIds[1] && <button style={{ marginLeft: '1rem' }} onClick={() => setSelectedIds(prev => [prev[0]])}>✕</button>}
+            </div>
           </div>
-          <Button onClick={startBattle}>
+          <Button onClick={startBattle} disabled={selectedIds.length !== 2}>
             Start Battle
           </Button>
         </div>
@@ -270,7 +275,7 @@ export default function Home() {
                 <input type="text" value={charName} onChange={e => setCharName(e.target.value)} className={styles.input} required />
               </div>
               <div className={styles.formGroup}>
-                <label>Skills</label>
+                <label>Description / 設定・特徴</label>
                 <textarea value={charSkills} onChange={e => setCharSkills(e.target.value)} className={styles.textarea} required />
               </div>
               <div className={styles.formGroup}>

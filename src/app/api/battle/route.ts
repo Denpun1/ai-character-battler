@@ -29,12 +29,12 @@ ${basePrompt}
 
 【キャラクター1】
 名前: ${p1.name}
-スキル: ${p1.skills}
+設定/特徴: ${p1.skills}
 ${p1ItemStr}
 
 【キャラクター2】
 名前: ${p2.name}
-スキル: ${p2.skills}
+設定/特徴: ${p2.skills}
 ${p2ItemStr}
 `;
 
