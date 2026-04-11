@@ -22,12 +22,13 @@ export function useCharacters() {
 
     if (error) {
       console.error('Error fetching characters:', error);
+      setIsLoaded(true);
       return;
     }
 
     if (data) {
       // Map database fields (snake_case) to Character type (camelCase)
-      const mapped: Character[] = data.map(item => ({
+      const mapped: Character[] = data.map((item: any) => ({
         id: item.id,
         name: item.name,
         skills: item.skills,
@@ -58,7 +59,7 @@ export function useCharacters() {
         user_id: userId,
         name,
         skills,
-        item_id: itemId,
+        item_id: itemId === '' ? null : itemId,
         color,
         created_at: Date.now()
       })
@@ -82,7 +83,7 @@ export function useCharacters() {
       .update({
         name,
         skills,
-        item_id: itemId,
+        item_id: itemId === '' ? null : itemId,
         color
       })
       .eq('id', id)
