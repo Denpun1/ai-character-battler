@@ -42,6 +42,8 @@ export default function Home() {
   const [model, setModel] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [showThinking, setShowThinking] = useState(false);
+  const [thinkingBudget, setThinkingBudget] = useState(0);
+  const [provider, setProvider] = useState<'google' | 'lightning'>('google');
 
   const handleSelectChar = (id: string) => {
     setSelectedIds(prev => {
@@ -118,12 +120,14 @@ export default function Home() {
     setModel(settings.model);
     setTemperature(settings.temperature);
     setShowThinking(settings.showThinking || false);
+    setThinkingBudget(settings.thinkingBudget || 0);
+    setProvider(settings.provider || 'google');
     setIsSettingsOpen(true);
   };
 
   const saveSettingsForm = (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings({ systemPrompt, model, temperature, showThinking });
+    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, provider });
     setIsSettingsOpen(false);
   };
 
@@ -343,6 +347,13 @@ export default function Home() {
             <h2 className={styles.modalTitle}>Settings</h2>
             <form onSubmit={saveSettingsForm}>
               <div className={styles.formGroup}>
+                <label>API Provider</label>
+                <select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}>
+                  <option value="google">Google AI Studio (Gemini)</option>
+                  <option value="lightning">Lightning AI (Gemma/Llama)</option>
+                </select>
+              </div>
+              <div className={styles.formGroup}>
                 <label>Model</label>
                 <input 
                   type="text" 
@@ -379,9 +390,20 @@ export default function Home() {
                   value={systemPrompt} 
                   onChange={e => setSystemPrompt(e.target.value)} 
                   className={styles.textarea}
-                  style={{ minHeight: '200px' }}
+                  style={{ minHeight: '150px' }}
                   required
                 />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Thinking Budget (Tokens) - Gemini専用</label>
+                <input 
+                  type="number" 
+                  value={thinkingBudget} 
+                  onChange={e => setThinkingBudget(parseInt(e.target.value) || 0)} 
+                  className={styles.input}
+                  placeholder="例: 24000 (0で無効)"
+                />
+                <small style={{ color: '#888' }}>※Gemini 2.x以降のThinkingモデルで使用。整数である必要があります。</small>
               </div>
               <div className={styles.formGroup}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>

@@ -102,38 +102,52 @@ function BattleArena() {
   };
 
   const renderLog = (logText: string) => {
-    if (!logText.includes('<think>')) return <span>{logText}</span>;
+    // 1. Unified function to handle both <think> and Gemma-style tags
+    const findTags = (text: string) => {
+      // Look for standard <think> or Gemma <|channel>thought
+      const standardStart = text.indexOf('<think>');
+      const gemmaStart = text.indexOf('<|channel>thought');
+      
+      if (standardStart !== -1 && (gemmaStart === -1 || standardStart < gemmaStart)) {
+        return { start: standardStart, endTag: '</think>', offset: 7 };
+      }
+      if (gemmaStart !== -1) {
+        return { start: gemmaStart, endTag: '<channel|>', offset: 17 };
+      }
+      return null;
+    };
 
-    const parts = logText.split('<think>');
-    return (
-      <span>
-        {parts.map((part, index) => {
-          if (index === 0) return <span key={index}>{part}</span>;
-          
-          const closeIndex = part.indexOf('</think>');
-          if (closeIndex === -1) {
-            return (
-              <div key={index} className={styles.thinkingBox}>
-                <div className={styles.thinkingHeader}>💭 AI is thinking...</div>
-                {part}
-              </div>
-            );
-          } else {
-            const thinkContent = part.substring(0, closeIndex);
-            const restContent = part.substring(closeIndex + 8); // length of </think>
-            return (
-              <span key={index}>
-                <div className={styles.thinkingBox}>
-                  <div className={styles.thinkingHeader}>💭 Thought Process</div>
-                  {thinkContent}
-                </div>
-                {restContent}
-              </span>
-            );
-          }
-        })}
-      </span>
-    );
+    const tagInfo = findTags(logText);
+    if (!tagInfo) return <span>{logText}</span>;
+
+    const before = logText.substring(0, tagInfo.start);
+    const afterStart = logText.substring(tagInfo.start + tagInfo.offset);
+    const closeIndex = afterStart.indexOf(tagInfo.endTag);
+
+    if (closeIndex === -1) {
+      return (
+        <span>
+          {before}
+          <div className={styles.thinkingBox}>
+            <div className={styles.thinkingHeader}>💭 AI is thinking...</div>
+            {afterStart}
+          </div>
+        </span>
+      );
+    } else {
+      const thinkContent = afterStart.substring(0, closeIndex);
+      const restContent = afterStart.substring(closeIndex + tagInfo.endTag.length);
+      return (
+        <span>
+          {before}
+          <div className={styles.thinkingBox}>
+            <div className={styles.thinkingHeader}>💭 Thought Process</div>
+            {thinkContent}
+          </div>
+          {renderLog(restContent)}
+        </span>
+      );
+    }
   };
 
   if (!p1 || !p2) return <div className={styles.container}>Loading...</div>;
