@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
       }
 
       const ai = new GoogleGenAI({ apiKey });
-      let basePrompt = systemPrompt || (isEpilogue ? '後日譚を作成してください。' : '以下のキャラクターたちが熱いバトルを行います。展開と勝敗を出力してください。最後に「勝者: [キャラクター名]」で終わること。');
-
+      let basePrompt = systemPrompt || (isEpilogue ? '後日譚を作成してください。' : 'キャラクターたちが熱いバトルを行い、最後に「勝者: [キャラクター名]」で終わること。');
+      
       // Thinking specific prompt logic
       if (showThinking) {
         if (selectedModel.toLowerCase().includes('gemma')) {
@@ -106,7 +106,9 @@ export async function POST(req: NextRequest) {
         return new Response(JSON.stringify({ error: "Lightning API Key is missing." }), { status: 500 });
       }
 
-      let basePrompt = systemPrompt;
+      const ai = new GoogleGenAI({ apiKey });
+      let basePrompt = systemPrompt || 'バトルの結果を出力してください。';
+
       if (showThinking && selectedModel.toLowerCase().includes('gemma')) {
         basePrompt = '<|think|>\n' + basePrompt;
       }

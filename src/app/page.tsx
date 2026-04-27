@@ -202,16 +202,13 @@ export default function Home() {
     // but ideally we should update the DB. For now, let's assume we can pass a player list.
     // In our current queue table, we only have p1_id and p2_id.
     // If we want multi-player in queue, we need a new schema or a JSON field.
-    
-    // For now, let's just use the first two for queue to avoid breaking things, 
-    // but the main "Start Battle" will support N players.
-    
     await supabase.from('battle_queue').insert({
-      user_id: user?.id,
+      user_id: user.id,
       p1_id: selectedIds[0],
       p2_id: selectedIds[1],
-      p1_item_id: playersData[0].p1_item_id,
-      p2_item_id: playersData[1].p1_item_id,
+      participant_ids: selectedIds,
+      p1_item_id: itemOverrides[selectedIds[0]] === 'none' ? null : (itemOverrides[selectedIds[0]] || characters.find(c => c.id === selectedIds[0])?.itemId || null),
+      p2_item_id: itemOverrides[selectedIds[1]] === 'none' ? null : (itemOverrides[selectedIds[1]] || characters.find(c => c.id === selectedIds[1])?.itemId || null),
       provider: settings.provider,
       model: settings.model,
       system_prompt: settings.systemPrompt,
@@ -643,6 +640,11 @@ export default function Home() {
               </div>
 
               <div className={styles.modalActions}>
+                <Button variant="secondary" type="button" onClick={() => {
+                  setSystemPrompt('以下のキャラクターたちが熱いバトルを行います。設定に基づいて、臨場感のある劇的なバトルの展開と、最終的に誰が勝つかを決定し、シナリオを出力してください。文章は小説のようなトーンで作成してください。出力要件: 1. バトル開始の状況 2. スキル・アイテムを駆使した攻防 3. クライマックス 4. 明確な勝者の宣言（最後に「勝者: [キャラクター名]」という形式で終わること）');
+                  setEpiloguePrompt('以下のバトルの結果を受けて、その後の後日譚（エピローグ）を短編小説風に作成してください。敗者のその後や、勝者の葛藤、周囲の反応なども含めて情緒的に描いてください。');
+                }}>Reset Prompts to Default</Button>
+                <div style={{ flexGrow: 1 }} />
                 <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
                 <Button type="submit">Apply Settings</Button>
               </div>

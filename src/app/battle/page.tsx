@@ -145,6 +145,7 @@ function BattleArena() {
           p2_item_id: fighters[1].itemId || null,
           winner_name: matchWinner,
           log_text: streamText,
+          participant_ids: fighters.map(f => f.id),
           created_at: Date.now()
         });
       }

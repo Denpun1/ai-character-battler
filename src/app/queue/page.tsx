@@ -87,10 +87,22 @@ export default function QueuePage() {
         fetchQueue();
 
         // Call API
-        const p1 = characters.find(c => c.id === data.p1_id);
-        const p2 = characters.find(c => c.id === data.p2_id);
+        let fighters: any[] = [];
+        if (data.participant_ids && data.participant_ids.length > 0) {
+          fighters = data.participant_ids.map((id: string) => {
+            const char = characters.find(c => c.id === id);
+            if (!char) return null;
+            return { ...char, itemDetails: items.find(i => i.id === (id === data.p1_id ? data.p1_item_id : (id === data.p2_id ? data.p2_item_id : char.itemId))) };
+          }).filter(Boolean);
+        } else {
+          // Fallback to p1/p2
+          const cp1 = characters.find(c => c.id === data.p1_id);
+          const cp2 = characters.find(c => c.id === data.p2_id);
+          if (cp1) fighters.push({ ...cp1, itemDetails: items.find(i => i.id === (data.p1_item_id || cp1.itemId)) });
+          if (cp2) fighters.push({ ...cp2, itemDetails: items.find(i => i.id === (data.p2_item_id || cp2.itemId)) });
+        }
         
-        if (!p1 || !p2) {
+        if (fighters.length < 2) {
            await supabase.from('battle_queue').update({ status: 'failed', error_msg: 'Characters not found' }).eq('id', data.id);
            fetchQueue();
            continue;
@@ -101,8 +113,7 @@ export default function QueuePage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              p1: { ...p1, itemDetails: items.find(i => i.id === (data.p1_item_id || p1.itemId)) },
-              p2: { ...p2, itemDetails: items.find(i => i.id === (data.p2_item_id || p2.itemId)) },
+              players: fighters,
               systemPrompt: data.system_prompt,
               model: data.model,
               temperature: data.temperature,
@@ -135,12 +146,13 @@ export default function QueuePage() {
 
           const insertRes = await supabase.from('battle_history').insert({
             user_id: user!.id,
-            p1_id: p1.id,
-            p2_id: p2.id,
-            p1_item_id: data.p1_item_id || p1.itemId || null,
-            p2_item_id: data.p2_item_id || p2.itemId || null,
+            p1_id: fighters[0].id,
+            p2_id: fighters[1].id,
+            p1_item_id: fighters[0].itemId || null,
+            p2_item_id: fighters[1].itemId || null,
             winner_name: matchWinner,
             log_text: streamText,
+            participant_ids: fighters.map(f => f.id),
             created_at: Date.now()
           }).select('id').single();
 
@@ -151,14 +163,12 @@ export default function QueuePage() {
           }
         } catch (err: any) {
           console.error("Queue process error, retrying...", err);
-          // Set back to pending so it can be retried, and add error msg
           await supabase.from('battle_queue').update({ 
             status: 'failed', 
-            error_msg: `Error: ${err.message || 'Unknown'}. Retrying soon...` 
+            error_msg: `Error: ${err.message || 'Unknown'}.` 
           }).eq('id', data.id);
           
           fetchQueue();
-          // Wait before next attempt to avoid spamming
           await sleep(3000);
           continue; 
         }
@@ -179,14 +189,13 @@ export default function QueuePage() {
 
   if (!isLoaded || !charsLoaded || !settingsLoaded) return <div style={{ padding: '2rem' }}>Loading...</div>;
 
-  const pendingCount = queue.filter(q => q.status === 'pending').length;
+  const pendingCount = queue.filter(q => q.status === 'pending' || q.status === 'failed').length;
 
   return (
     <div className={styles.container}>
       <header className={styles.header}>
         <h1 className={styles.title}>Async Battle Queue</h1>
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <Button onClick={() => setShowQueueModal(true)}>+ Add to Queue</Button>
           <Button 
             onClick={processQueue} 
             disabled={isProcessing || pendingCount === 0}
@@ -199,11 +208,12 @@ export default function QueuePage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '4rem' }}>
         {queue.length === 0 ? (
-          <div className={styles.emptyState}>Queue is empty. Add battles to run them automatically!</div>
+          <div className={styles.emptyState}>Queue is empty. Add battles from the Main Arena!</div>
         ) : (
           queue.map(q => {
-            const p1 = characters.find(c => c.id === q.p1_id)?.name || 'Unknown';
-            const p2 = characters.find(c => c.id === q.p2_id)?.name || 'Unknown';
+            const fighterNames = q.participant_ids 
+              ? q.participant_ids.map((id: string) => characters.find(c => c.id === id)?.name || 'Unknown') 
+              : [characters.find(c => c.id === q.p1_id)?.name || 'Unknown', characters.find(c => c.id === q.p2_id)?.name || 'Unknown'];
             
             let statusColor = '#888';
             if (q.status === 'pending') statusColor = '#d97706';
@@ -215,11 +225,9 @@ export default function QueuePage() {
               <Card key={q.id}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h3>{p1} vs {p2}</h3>
+                    <h3 style={{ fontSize: '1rem' }}>{fighterNames.join(' vs ')}</h3>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                      <span style={{ color: statusColor, fontWeight: 'bold', textTransform: 'uppercase' }}>
-                        {q.status}
-                      </span>
+                      <span style={{ color: statusColor, fontWeight: 'bold' }}> {q.status.toUpperCase()} </span>
                       <span style={{ color: '#666' }}>Engine: {q.provider} ({q.model})</span>
                     </div>
                   </div>
@@ -229,7 +237,7 @@ export default function QueuePage() {
                     )}
                   </div>
                 </div>
-                {q.error_msg && <p style={{ color: '#dc2626', marginTop: '0.5rem' }}>Error: {q.error_msg}</p>}
+                {q.error_msg && <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.85rem' }}>{q.error_msg}</p>}
               </Card>
             );
           })

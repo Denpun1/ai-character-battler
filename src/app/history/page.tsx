@@ -38,17 +38,31 @@ export default function HistoryPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '4rem' }}>
           {history.map(h => {
-             const p1 = characters.find(c => c.id === h.p1_id)?.name || 'Unknown Character';
-             const p2 = characters.find(c => c.id === h.p2_id)?.name || 'Unknown Character';
-             return (
-               <Card key={h.id}>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                   <div>
-                     <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{p1} <span style={{ color: '#888', fontSize: '1rem' }}>vs</span> {p2}</h3>
-                     <p style={{ fontWeight: 'bold', color: h.winner_name ? 'var(--primary)' : 'inherit' }}>
-                       Winner: {h.winner_name || 'Undecided / Error'}
-                     </p>
-                   </div>
+                <Card key={h.id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        {h.participant_ids && h.participant_ids.length > 0 ? (
+                          h.participant_ids.map((pid: string, idx: number) => (
+                            <span key={pid}>
+                              <span style={{ fontWeight: 'bold' }}>{characters.find(c => c.id === pid)?.name || 'Unknown'}</span>
+                              {idx < h.participant_ids.length - 1 && <span style={{ color: '#888', marginLeft: '0.4rem' }}>vs</span>}
+                            </span>
+                          ))
+                        ) : h.log_text && h.log_text.includes('【キャラクター3】') ? (
+                          <span style={{ fontStyle: 'italic', color: 'var(--primary)' }}>[Multi-Player Battle (全員のIDが未記録)]</span>
+                        ) : (
+                          <>
+                            <span style={{ fontWeight: 'bold' }}>{characters.find(c => c.id === h.p1_id)?.name || 'Unknown'}</span>
+                            <span style={{ color: '#888' }}>vs</span>
+                            <span style={{ fontWeight: 'bold' }}>{characters.find(c => c.id === h.p2_id)?.name || 'Unknown'}</span>
+                          </>
+                        )}
+                      </div>
+                      <p style={{ fontWeight: 'bold', color: h.winner_name ? 'var(--primary)' : 'inherit', fontSize: '1.2rem' }}>
+                        Winner: {h.winner_name || 'Undecided / Error'}
+                      </p>
+                    </div>
                    <div style={{ color: '#888', fontSize: '0.9rem' }}>
                      {new Date(Number(h.created_at)).toLocaleString()}
                    </div>
