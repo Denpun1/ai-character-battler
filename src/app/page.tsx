@@ -500,18 +500,31 @@ export default function Home() {
             <h2 className={styles.modalTitle}>Settings</h2>
 
             <div className={styles.formGroup}>
-              <label>Load Preset</label>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <select 
-                  className={styles.input} 
-                  onChange={e => handleLoadPreset(e.target.value)}
-                  defaultValue=""
-                >
-                  <option value="" disabled>-- Select preset to load --</option>
+              <label>📁 Load Saved Instruction (Preset)</label>
+              <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <select 
+                    className={styles.input} 
+                    onChange={e => handleLoadPreset(e.target.value)}
+                    value=""
+                  >
+                    <option value="" disabled>-- Select instruction to load --</option>
+                    {presets.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
                   {presets.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.8rem' }}>
+                      <span style={{ marginRight: '0.5rem' }}>{p.name}</span>
+                      <button 
+                        onClick={() => deletePreset(p.id)}
+                        style={{ background: 'none', border: 'none', color: '#ff5555', cursor: 'pointer', padding: '0 2px' }}
+                      >✕</button>
+                    </div>
                   ))}
-                </select>
+                </div>
               </div>
             </div>
 
@@ -557,16 +570,6 @@ export default function Home() {
                 </div>
               </div>
               <div className={styles.formGroup}>
-                <label>System Prompt</label>
-                <textarea 
-                  value={systemPrompt} 
-                  onChange={e => setSystemPrompt(e.target.value)} 
-                  className={styles.textarea}
-                  style={{ minHeight: '150px' }}
-                  required
-                />
-              </div>
-              <div className={styles.formGroup}>
                 <label>Thinking Budget (Tokens) - Gemini 2.x専用</label>
                 <input 
                   type="number" 
@@ -575,7 +578,7 @@ export default function Home() {
                   className={styles.input}
                   placeholder="例: 24000 (0で無効)"
                 />
-                <small style={{ color: '#888' }}>※Gemini 2.x以降のThinkingモデルで使用。整数である必要があります。</small>
+                <small style={{ color: '#888' }}>※Gemini 2.x以降のThinkingモデルで使用。</small>
               </div>
               <div className={styles.formGroup}>
                 <label>Thinking Level - Gemma 4 / Gemini 3専用</label>
@@ -592,7 +595,7 @@ export default function Home() {
                 <small style={{ color: '#888' }}>※Gemma 4やGemini 3以降のモデルで使用。推論の深さを調整します。</small>
               </div>
               <div className={styles.formGroup}>
-                <label>System Prompt (Battle)</label>
+                <label>Instruction: Battle (バトル用指示)</label>
                 <textarea 
                   value={systemPrompt} 
                   onChange={e => setSystemPrompt(e.target.value)} 
@@ -602,7 +605,7 @@ export default function Home() {
                 />
               </div>
               <div className={styles.formGroup}>
-                <label>Epilogue Prompt (After-story)</label>
+                <label>Instruction: Epilogue (後日譚用指示)</label>
                 <textarea 
                   value={epiloguePrompt} 
                   onChange={e => setEpiloguePrompt(e.target.value)} 
@@ -611,20 +614,30 @@ export default function Home() {
                   required
                 />
               </div>
+              <div className={styles.formGroup}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={showThinking} 
+                    onChange={e => setShowThinking(e.target.checked)} 
+                  />
+                  AIの思考プロセスを表示する
+                </label>
+              </div>
               <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
               
               <div className={styles.formGroup}>
-                <label>Save as New Preset</label>
+                <label>💾 Save current settings as New Instruction</label>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <input 
                     type="text" 
                     value={newPresetName} 
                     onChange={e => setNewPresetName(e.target.value)} 
                     className={styles.input}
-                    placeholder="Preset name..."
+                    placeholder="Instruction name (e.g. Comical Battle)"
                   />
                   <Button type="button" variant="secondary" onClick={handleSaveNewPreset} disabled={!newPresetName.trim()}>
-                    Save Preset
+                    Save New
                   </Button>
                 </div>
               </div>
