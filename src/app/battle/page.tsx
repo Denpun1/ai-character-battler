@@ -143,28 +143,37 @@ function BattleArena() {
       setIsFinished(true);
 
       let matchWinner = null;
-      const match = streamText.match(/勝者[:：]\s*(.+)/);
-      if (match && match[1]) {
-        matchWinner = match[1].trim();
-        setWinner(matchWinner);
+      try {
+        const match = streamText.match(/勝者[:：]\s*(.+)/);
+        if (match && match[1]) {
+          matchWinner = match[1].trim();
+          setWinner(matchWinner);
+        }
+      } catch (e) {
+        console.error('Winner detection error:', e);
       }
 
       if (user?.id) {
+        // Prepare IDs safely
+        const fIds = fighters.filter(f => f && f.id).map(f => f.id);
+        
         const { error: histError } = await supabase.from('battle_history').insert({
           user_id: user.id,
-          p1_id: fighters[0].id,
-          p2_id: fighters[1].id,
-          p1_item_id: fighters[0].itemId || null,
-          p2_item_id: fighters[1].itemId || null,
+          p1_id: fighters[0]?.id || null,
+          p2_id: fighters[1]?.id || null,
+          p1_item_id: fighters[0]?.itemId || null,
+          p2_item_id: fighters[1]?.itemId || null,
           winner_name: matchWinner,
           log_text: streamText,
-          participant_ids: fighters.map(f => f.id),
+          participant_ids: fIds,
           created_at: Date.now()
         });
         
         if (histError) {
           console.error('History Save Error:', histError);
-          alert('Failed to save history: ' + histError.message);
+          alert('Failed to save history: ' + histError.message + ' (Hint: ' + histError.hint + ')');
+        } else {
+          console.log('History saved successfully');
         }
       }
     } catch (error: any) {
