@@ -105,8 +105,6 @@ export async function POST(req: NextRequest) {
       if (!lightningKey) {
         return new Response(JSON.stringify({ error: "Lightning API Key is missing." }), { status: 500 });
       }
-
-      const ai = new GoogleGenAI({ apiKey });
       let basePrompt = systemPrompt || 'バトルの結果を出力してください。';
 
       if (showThinking && selectedModel.toLowerCase().includes('gemma')) {

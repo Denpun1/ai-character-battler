@@ -38,6 +38,7 @@ export default function HistoryPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '4rem' }}>
           {history.map(h => {
+             return (
                 <Card key={h.id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
