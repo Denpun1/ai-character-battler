@@ -6,6 +6,8 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useSettings } from '@/hooks/useSettings';
 import { Button } from '@/components/Button';
+import { useUser } from '@clerk/nextjs';
+import { supabase } from '@/lib/supabase';
 import styles from './page.module.css';
 
 function BattleArena() {
@@ -14,34 +16,78 @@ function BattleArena() {
   const { characters, isLoaded } = useCharacters();
   const { items, isLoaded: itemsLoaded } = useItems();
   const { settings, isLoaded: settingsLoaded } = useSettings();
+  const { user } = useUser();
 
-  const [p1, setP1] = useState<any>(null);
-  const [p2, setP2] = useState<any>(null);
+  const [fighters, setFighters] = useState<any[]>([]);
   const [battleLog, setBattleLog] = useState<string>('');
+  const [epilogueLog, setEpilogueLog] = useState<string>('');
   const [isFighting, setIsFighting] = useState(false);
+  const [isEpiloguing, setIsEpiloguing] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
 
   useEffect(() => {
     if (isLoaded && settingsLoaded && itemsLoaded) {
-      const id1 = searchParams.get('p1');
-      const id2 = searchParams.get('p2');
-      const fighter1 = characters.find(c => c.id === id1);
-      const fighter2 = characters.find(c => c.id === id2);
+      const playersParam = searchParams.get('players');
+      const overridesParam = searchParams.get('overrides');
+      
+      let ids: string[] = [];
+      if (playersParam) {
+        ids = playersParam.split(',');
+      } else {
+        // Fallback to p1/p2 for old links
+        const p1 = searchParams.get('p1');
+        const p2 = searchParams.get('p2');
+        if (p1) ids.push(p1);
+        if (p2) ids.push(p2);
+      }
 
-      if (!fighter1 || !fighter2) {
+      if (ids.length < 2) {
         router.push('/');
         return;
       }
-      setP1(fighter1);
-      setP2(fighter2);
+
+      // Parse overrides: id1:item1|id2:item2
+      const overrides: Record<string, string> = {};
+      if (overridesParam) {
+        overridesParam.split('|').forEach(part => {
+          const [id, item] = part.split(':');
+          if (id && item) overrides[id] = item;
+        });
+      } else {
+        // Fallback to p1item/p2item
+        const p1item = searchParams.get('p1item');
+        const p2item = searchParams.get('p2item');
+        if (ids[0] && p1item) overrides[ids[0]] = p1item;
+        if (ids[1] && p2item) overrides[ids[1]] = p2item;
+      }
+
+      const selectedFighters = ids.map(id => {
+        const char = characters.find(c => c.id === id);
+        if (!char) return null;
+        
+        let finalItemId = char.itemId;
+        const override = overrides[id];
+        if (override === 'none') finalItemId = undefined;
+        else if (override) finalItemId = override;
+        
+        return { ...char, itemId: finalItemId };
+      }).filter(Boolean);
+
+      if (selectedFighters.length < 2) {
+        router.push('/');
+        return;
+      }
+
+      setFighters(selectedFighters);
     }
   }, [isLoaded, settingsLoaded, itemsLoaded, characters, searchParams, router]);
 
   const startFight = async () => {
-    if (!p1 || !p2) return;
+    if (fighters.length < 2) return;
     setIsFighting(true);
     setBattleLog('');
+    setEpilogueLog('');
     setIsFinished(false);
     setWinner(null);
 
@@ -50,39 +96,32 @@ function BattleArena() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          p1: { ...p1, itemDetails: items.find(i => i.id === p1.itemId) },
-          p2: { ...p2, itemDetails: items.find(i => i.id === p2.itemId) },
+          players: fighters.map(f => ({ ...f, itemDetails: items.find(i => i.id === f.itemId) })),
           systemPrompt: settings.systemPrompt,
           model: settings.model,
           temperature: settings.temperature,
-          showThinking: settings.showThinking
+          showThinking: settings.showThinking,
+          thinkingBudget: settings.thinkingBudget,
+          thinkingLevel: settings.thinkingLevel,
+          provider: settings.provider
         })
       });
 
       if (!res.ok) {
-        let msg = 'Server error';
-        try {
-          const errData = await res.json();
-          msg = errData.error || msg;
-        } catch (e) {}
-        setBattleLog(`Error: ${msg}`);
+        const errData = await res.json().catch(() => ({ error: 'Server error' }));
+        setBattleLog(`Error: ${errData.error}`);
         setIsFighting(false);
         return;
       }
 
       const reader = res.body?.getReader();
-      if (!reader) {
-        setIsFighting(false);
-        return;
-      }
-
+      if (!reader) return;
       const decoder = new TextDecoder();
       let streamText = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
         streamText += decoder.decode(value, { stream: true });
         setBattleLog(streamText);
       }
@@ -90,24 +129,78 @@ function BattleArena() {
       setIsFighting(false);
       setIsFinished(true);
 
+      let matchWinner = null;
       const match = streamText.match(/勝者[:：]\s*(.+)/);
       if (match && match[1]) {
-        setWinner(match[1].trim());
+        matchWinner = match[1].trim();
+        setWinner(matchWinner);
+      }
+
+      if (user?.id) {
+        await supabase.from('battle_history').insert({
+          user_id: user.id,
+          p1_id: fighters[0].id,
+          p2_id: fighters[1].id,
+          p1_item_id: fighters[0].itemId || null,
+          p2_item_id: fighters[1].itemId || null,
+          winner_name: matchWinner,
+          log_text: streamText,
+          created_at: Date.now()
+        });
       }
     } catch (error: any) {
-      console.error(error);
-      setBattleLog(`Error starting fight: ${error.message || error}`);
+      setBattleLog(`Error: ${error.message}`);
       setIsFighting(false);
     }
   };
 
-  const renderLog = (logText: string) => {
-    // 1. Unified function to handle both <think> and Gemma-style tags
+  const startEpilogue = async () => {
+    if (!battleLog || isFighting || isEpiloguing) return;
+    setIsEpiloguing(true);
+    setEpilogueLog('');
+
+    try {
+      const res = await fetch('/api/battle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          players: fighters.map(f => ({ ...f, itemDetails: items.find(i => i.id === f.itemId) })),
+          systemPrompt: settings.epiloguePrompt,
+          model: settings.model,
+          temperature: settings.temperature,
+          showThinking: settings.showThinking,
+          thinkingBudget: settings.thinkingBudget,
+          thinkingLevel: settings.thinkingLevel,
+          provider: settings.provider,
+          isEpilogue: true,
+          context: battleLog
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to generate epilogue');
+
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      let streamText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        streamText += decoder.decode(value, { stream: true });
+        setEpilogueLog(streamText);
+      }
+    } catch (error: any) {
+      setEpilogueLog(`Error: ${error.message}`);
+    } finally {
+      setIsEpiloguing(false);
+    }
+  };
+
+  const renderLog = (logText: string, label?: string) => {
     const findTags = (text: string) => {
-      // Look for standard <think> or Gemma <|channel>thought
       const standardStart = text.indexOf('<think>');
       const gemmaStart = text.indexOf('<|channel>thought');
-      
       if (standardStart !== -1 && (gemmaStart === -1 || standardStart < gemmaStart)) {
         return { start: standardStart, endTag: '</think>', offset: 7 };
       }
@@ -129,7 +222,7 @@ function BattleArena() {
         <span>
           {before}
           <div className={styles.thinkingBox}>
-            <div className={styles.thinkingHeader}>💭 AI is thinking...</div>
+            <div className={styles.thinkingHeader}>💭 Thinking... {label}</div>
             {afterStart}
           </div>
         </span>
@@ -141,66 +234,63 @@ function BattleArena() {
         <span>
           {before}
           <div className={styles.thinkingBox}>
-            <div className={styles.thinkingHeader}>💭 Thought Process</div>
+            <div className={styles.thinkingHeader}>💭 Thoughts {label}</div>
             {thinkContent}
           </div>
-          {renderLog(restContent)}
+          {renderLog(restContent, label)}
         </span>
       );
     }
   };
 
-  if (!p1 || !p2) return <div className={styles.container}>Loading...</div>;
+  if (fighters.length === 0) return <div className={styles.container}>Loading Arena...</div>;
 
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <Button variant="secondary" onClick={() => router.push('/')}>
-          Back
-        </Button>
+        <Button variant="secondary" onClick={() => router.push('/')}>Back</Button>
         <h1 className={styles.title}>Battle Arena</h1>
       </header>
 
-      <div className={styles.arena}>
-        <div className={styles.fighter}>
-          <div className={styles.fighterName}>{p1.name}</div>
-          {p1.itemId && items.find(i => i.id === p1.itemId) && (
-            <div className={styles.fighterItem}>Equipment: {items.find(i => i.id === p1.itemId)?.name}</div>
-          )}
-        </div>
+      <div className={styles.arena} style={{ gridTemplateColumns: fighters.length > 2 ? 'repeat(auto-fit, minmax(150px, 1fr))' : '1fr auto 1fr', gap: '1rem' }}>
+        {fighters.map((f, i) => (
+          <div key={f.id} className={styles.fighter} style={{ borderBottom: `4px solid ${f.color}` }}>
+            <div className={styles.fighterName}>{f.name}</div>
+            {f.itemId && <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>Equip: {items.find(it => it.id === f.itemId)?.name}</div>}
+          </div>
+        ))}
+        {fighters.length <= 2 && (
+          <div className={styles.vsContainer} style={{ order: 0 }}>
+             <div>VS</div>
+          </div>
+        )}
+      </div>
 
-        <div className={styles.vsContainer}>
-          <div>VS</div>
-          {!isFighting && !isFinished && (
-            <Button onClick={startFight} style={{ marginTop: '1rem' }}>FIGHT</Button>
-          )}
-          {!isFighting && isFinished && (
-            <Button variant="secondary" onClick={startFight} style={{ marginTop: '1rem' }}>Rematch</Button>
-          )}
-        </div>
-
-        <div className={styles.fighter}>
-          <div className={styles.fighterName}>{p2.name}</div>
-          {p2.itemId && items.find(i => i.id === p2.itemId) && (
-            <div className={styles.fighterItem}>Equipment: {items.find(i => i.id === p2.itemId)?.name}</div>
-          )}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'center', margin: '2rem 0', gap: '1rem' }}>
+        {!isFighting && !isFinished && <Button onClick={startFight}>FIGHT</Button>}
+        {isFinished && (
+          <>
+            <Button variant="secondary" onClick={startFight}>Rematch</Button>
+            {!epilogueLog && !isEpiloguing && <Button onClick={startEpilogue}>Generate Epilogue</Button>}
+          </>
+        )}
       </div>
 
       {(isFighting || isFinished) && (
         <div className={styles.battleLog}>
-          {isFighting && !battleLog && (
-            <div className={styles.loadingState}>
-              Generating battle...
-            </div>
-          )}
+          {isFighting && !battleLog && <div className={styles.loadingState}>Generating battle...</div>}
           {renderLog(battleLog)}
-          
           {isFinished && winner && (
-            <div className={styles.winnerDeclaration}>
-              Winner: {winner}
+            <div className={styles.winnerDeclaration}> Winner: {winner} </div>
+          )}
+
+          {epilogueLog && (
+            <div className={styles.epilogueArea}>
+              <h2 className={styles.epilogueTitle}>❧ Epilogue (後日譚)</h2>
+              {renderLog(epilogueLog, '(Epilogue)')}
             </div>
           )}
+          {isEpiloguing && !epilogueLog && <div className={styles.loadingState}>Writing epilogue...</div>}
         </div>
       )}
     </div>

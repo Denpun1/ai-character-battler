@@ -8,17 +8,19 @@ import { useSettings } from '@/hooks/useSettings';
 import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { supabase } from '@/lib/supabase';
 import styles from './page.module.css';
 
 const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777'];
 
 export default function Home() {
   const router = useRouter();
-  const { characters, isLoaded: charLoaded, addCharacter, editCharacter, deleteCharacter } = useCharacters();
+  const { characters, isLoaded: charLoaded, addCharacter, editCharacter, deleteCharacter, fetchVariants, saveVariant, deleteVariant } = useCharacters();
   const { items, isLoaded: itemsLoaded, addItem, editItem, deleteItem } = useItems();
-  const { settings, isLoaded: settingsLoaded, saveSettings } = useSettings();
-  const { isSignedIn, isLoaded: isAuthLoaded } = useUser();
+  const { settings, presets, isLoaded: settingsLoaded, saveSettings, createPreset, deletePreset } = useSettings();
+  const { isSignedIn, isLoaded: isAuthLoaded, user } = useUser();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [itemOverrides, setItemOverrides] = useState<Record<string, string>>({}); // { charId: itemId }
   
   // Modals state
   const [isCharModalOpen, setIsCharModalOpen] = useState(false);
@@ -32,6 +34,8 @@ export default function Home() {
   const [charSkills, setCharSkills] = useState('');
   const [charItemId, setCharItemId] = useState('');
   const [charColor, setCharColor] = useState(COLORS[0]);
+  const [charVariants, setCharVariants] = useState<any[]>([]);
+  const [newVariantName, setNewVariantName] = useState('');
 
   // Item Form
   const [itemName, setItemName] = useState('');
@@ -43,19 +47,18 @@ export default function Home() {
   const [temperature, setTemperature] = useState(0.7);
   const [showThinking, setShowThinking] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState(0);
+  const [thinkingLevel, setThinkingLevel] = useState<'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH'>('HIGH');
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
+  const [epiloguePrompt, setEpiloguePrompt] = useState('');
+  const [newPresetName, setNewPresetName] = useState('');
 
   const handleSelectChar = (id: string) => {
-    setSelectedIds(prev => {
-      if (prev.length < 2) {
-        return [...prev, id]; // Allow duplicates
-      }
-      // If 2 already selected, replace the oldest one
-      return [prev[1], id];
-    });
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
   };
 
-  const openCharModal = (id?: string) => {
+  const openCharModal = async (id?: string) => {
     if (id) {
       const char = characters.find(c => c.id === id);
       if (char) {
@@ -64,6 +67,9 @@ export default function Home() {
         setCharSkills(char.skills);
         setCharItemId(char.itemId || '');
         setCharColor(char.color || COLORS[0]);
+        // Load variants
+        const vars = await fetchVariants(id);
+        setCharVariants(vars);
       }
     } else {
       setEditingCharId(null);
@@ -71,20 +77,34 @@ export default function Home() {
       setCharSkills('');
       setCharItemId('');
       setCharColor(COLORS[0]);
+      setCharVariants([]);
     }
+    setNewVariantName('');
     setIsCharModalOpen(true);
   };
 
-  const saveChar = (e: React.FormEvent) => {
+  const saveChar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!charName.trim() || !charSkills.trim()) return;
     
     if (editingCharId) {
-      editCharacter(editingCharId, charName.trim(), charSkills.trim(), charItemId, charColor);
+      await editCharacter(editingCharId, charName.trim(), charSkills.trim(), charItemId, charColor);
     } else {
-      addCharacter(charName.trim(), charSkills.trim(), charItemId, charColor);
+      await addCharacter(charName.trim(), charSkills.trim(), charItemId, charColor);
     }
     setIsCharModalOpen(false);
+  };
+
+  const handleSaveVariant = async () => {
+    if (!editingCharId || !newVariantName.trim()) return;
+    await saveVariant(editingCharId, newVariantName, charSkills);
+    setNewVariantName('');
+    const vars = await fetchVariants(editingCharId);
+    setCharVariants(vars);
+  };
+
+  const loadVariant = (skills: string) => {
+    setCharSkills(skills);
   };
 
   const openItemModal = (id?: string) => {
@@ -121,19 +141,89 @@ export default function Home() {
     setTemperature(settings.temperature);
     setShowThinking(settings.showThinking || false);
     setThinkingBudget(settings.thinkingBudget || 0);
+    setThinkingLevel(settings.thinkingLevel || 'HIGH');
+    setEpiloguePrompt(settings.epiloguePrompt || '');
     setProvider(settings.provider || 'google');
     setIsSettingsOpen(true);
   };
 
   const saveSettingsForm = (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, provider });
+    saveSettings({ systemPrompt, epiloguePrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
     setIsSettingsOpen(false);
   };
 
+  const handleLoadPreset = (presetId: string) => {
+    const p = presets.find(x => x.id === presetId);
+    if (p) {
+      setSystemPrompt(p.systemPrompt);
+      setModel(p.model);
+      setTemperature(p.temperature);
+      setShowThinking(p.showThinking);
+      setThinkingBudget(p.thinkingBudget);
+      setThinkingLevel(p.thinkingLevel);
+      setEpiloguePrompt(p.epiloguePrompt);
+      setProvider(p.provider);
+    }
+  };
+
+  const handleSaveNewPreset = () => {
+    if (!newPresetName.trim()) return;
+    createPreset(newPresetName, { systemPrompt, epiloguePrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+    setNewPresetName('');
+  };
+
   const startBattle = () => {
-    if (selectedIds.length !== 2) return;
-    router.push(`/battle?p1=${selectedIds[0]}&p2=${selectedIds[1]}`);
+    if (selectedIds.length < 2) return;
+    const playersParam = selectedIds.join(',');
+    const overrides = Object.entries(itemOverrides)
+      .filter(([id, item]) => selectedIds.includes(id) && item)
+      .map(([id, item]) => `${id}:${item}`)
+      .join('|');
+    
+    let url = `/battle?players=${playersParam}`;
+    if (overrides) url += `&overrides=${encodeURIComponent(overrides)}`;
+    router.push(url);
+  };
+
+  const handleAddToQueue = async () => {
+    if (selectedIds.length < 2 || !isSignedIn) return;
+    
+    const playersData = selectedIds.map(id => {
+      const char = characters.find(c => c.id === id);
+      const overrideId = itemOverrides[id];
+      return {
+        id,
+        p1_item_id: overrideId === 'none' ? null : (overrideId || char?.itemId || null)
+      };
+    });
+
+    // Note: We'll take the first two for compatibility if the DB doesn't support array, 
+    // but ideally we should update the DB. For now, let's assume we can pass a player list.
+    // In our current queue table, we only have p1_id and p2_id.
+    // If we want multi-player in queue, we need a new schema or a JSON field.
+    
+    // For now, let's just use the first two for queue to avoid breaking things, 
+    // but the main "Start Battle" will support N players.
+    
+    await supabase.from('battle_queue').insert({
+      user_id: user?.id,
+      p1_id: selectedIds[0],
+      p2_id: selectedIds[1],
+      p1_item_id: playersData[0].p1_item_id,
+      p2_item_id: playersData[1].p1_item_id,
+      provider: settings.provider,
+      model: settings.model,
+      system_prompt: settings.systemPrompt,
+      epilogue_prompt: settings.epiloguePrompt,
+      temperature: settings.temperature,
+      thinking_budget: settings.thinkingBudget,
+      thinking_level: settings.thinkingLevel,
+      status: 'pending',
+      created_at: Date.now()
+    });
+    alert('Added to queue (Top 2 fighters used for now)!');
+    setSelectedIds([]);
   };
 
   if (!charLoaded || !itemsLoaded || !settingsLoaded || !isAuthLoaded) return <div>Loading...</div>;
@@ -141,16 +231,9 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <h1 className={styles.title}>AI Character Battler</h1>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <Button variant="secondary" onClick={openSettings}>Settings</Button>
-          {!isSignedIn ? (
-            <SignInButton mode="modal">
-              <Button>Login</Button>
-            </SignInButton>
-          ) : (
-            <UserButton />
-          )}
+        <h1 className={styles.title}>Welcome to the Arena</h1>
+        <div>
+          <Button variant="secondary" onClick={openSettings}>Settings (Presets)</Button>
         </div>
       </header>
 
@@ -254,19 +337,55 @@ export default function Home() {
 
       {(selectedIds.length > 0) && (
         <div className={styles.battleControls}>
-          <div className={styles.selectedFighters} style={{ display: 'flex', gap: '2rem', marginBottom: '1rem' }}>
-            <div>
-              <strong>Player 1:</strong> {characters.find(c => c.id === selectedIds[0])?.name || '(Not selected)'}
-              {selectedIds[0] && <button style={{ marginLeft: '1rem' }} onClick={() => setSelectedIds(prev => prev.length === 2 ? [prev[1]] : [])}>✕</button>}
-            </div>
-            <div>
-              <strong>Player 2:</strong> {characters.find(c => c.id === selectedIds[1])?.name || '(Not selected)'}
-              {selectedIds[1] && <button style={{ marginLeft: '1rem' }} onClick={() => setSelectedIds(prev => [prev[0]])}>✕</button>}
-            </div>
+          <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>Selected Fighters ({selectedIds.length})</h3>
+          <div className={styles.selectedFighters} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'stretch' }}>
+            {selectedIds.map((id, index) => {
+              const char = characters.find(c => c.id === id);
+              if (!char) return null;
+              return (
+                <div key={id} style={{ 
+                  background: 'rgba(255,255,255,0.05)', 
+                  borderLeft: `4px solid ${char.color}`,
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  minWidth: '220px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  position: 'relative'
+                }}>
+                  <button 
+                    style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#ff5555', cursor: 'pointer' }} 
+                    onClick={() => handleSelectChar(id)}
+                  >✕</button>
+                  <div>
+                    <strong>P{index + 1}:</strong> {char.name}
+                  </div>
+                  <div style={{ fontSize: '0.85rem' }}>
+                    <label>Item: </label>
+                    <select 
+                      value={itemOverrides[id] || ''} 
+                      onChange={e => setItemOverrides(prev => ({ ...prev, [id]: e.target.value }))}
+                      className={styles.input}
+                      style={{ padding: '0.2rem', marginTop: '4px', width: '100%' }}
+                    >
+                      <option value="">-- Permanent --</option>
+                      <option value="none">-- Forced None --</option>
+                      {items.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <Button onClick={startBattle} disabled={selectedIds.length !== 2}>
-            Start Battle
-          </Button>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <Button onClick={startBattle} disabled={selectedIds.length < 2}>
+              Start {selectedIds.length}-Way Battle
+            </Button>
+            <Button variant="secondary" onClick={handleAddToQueue} disabled={selectedIds.length < 2 || !isSignedIn}>
+              Add to Queue
+            </Button>
+          </div>
         </div>
       )}
 
@@ -310,8 +429,42 @@ export default function Home() {
               </div>
               <div className={styles.modalActions}>
                 <Button variant="secondary" type="button" onClick={() => setIsCharModalOpen(false)}>Cancel</Button>
-                <Button type="submit">Save</Button>
+                <Button type="submit">Save (Changes will backup)</Button>
               </div>
+
+              {editingCharId && (
+                <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                  <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>📜 History & Variants</h3>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <input 
+                      type="text" 
+                      value={newVariantName} 
+                      onChange={e => setNewVariantName(e.target.value)} 
+                      className={styles.input} 
+                      placeholder="Variant name to save current text..."
+                    />
+                    <Button type="button" variant="secondary" onClick={handleSaveVariant} disabled={!newVariantName.trim()}>Save as Variant</Button>
+                  </div>
+                  
+                  <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {charVariants.map(v => (
+                      <div key={v.id} style={{ padding: '0.5rem', background: 'var(--border)', borderRadius: '4px', fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <strong>{v.isBackup ? '🕒 Auto-Backup' : `⭐ ${v.name}`}</strong>
+                          <span>{new Date(v.createdAt).toLocaleString()}</span>
+                        </div>
+                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '8px', color: '#666' }}>
+                          {v.skills}
+                        </div>
+                        <Button type="button" variant="secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => loadVariant(v.skills)}>
+                          Restore this text
+                        </Button>
+                      </div>
+                    ))}
+                    {charVariants.length === 0 && <div style={{ color: '#888', fontSize: '0.85rem' }}>No history or variants yet.</div>}
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>
@@ -343,8 +496,27 @@ export default function Home() {
       {/* Settings Modal */}
       {isSettingsOpen && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
+          <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
             <h2 className={styles.modalTitle}>Settings</h2>
+
+            <div className={styles.formGroup}>
+              <label>Load Preset</label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <select 
+                  className={styles.input} 
+                  onChange={e => handleLoadPreset(e.target.value)}
+                  defaultValue=""
+                >
+                  <option value="" disabled>-- Select preset to load --</option>
+                  {presets.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
+
             <form onSubmit={saveSettingsForm}>
               <div className={styles.formGroup}>
                 <label>API Provider</label>
@@ -395,7 +567,7 @@ export default function Home() {
                 />
               </div>
               <div className={styles.formGroup}>
-                <label>Thinking Budget (Tokens) - Gemini専用</label>
+                <label>Thinking Budget (Tokens) - Gemini 2.x専用</label>
                 <input 
                   type="number" 
                   value={thinkingBudget} 
@@ -406,18 +578,60 @@ export default function Home() {
                 <small style={{ color: '#888' }}>※Gemini 2.x以降のThinkingモデルで使用。整数である必要があります。</small>
               </div>
               <div className={styles.formGroup}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={showThinking} 
-                    onChange={e => setShowThinking(e.target.checked)} 
-                  />
-                  AIの思考プロセスを表示する（ストリーミング出力）
-                </label>
+                <label>Thinking Level - Gemma 4 / Gemini 3専用</label>
+                <select 
+                  value={thinkingLevel} 
+                  onChange={e => setThinkingLevel(e.target.value as any)} 
+                  className={styles.input}
+                >
+                  <option value="MINIMAL">MINIMAL (高速・省トークン)</option>
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH (最高推論・デフォルト)</option>
+                </select>
+                <small style={{ color: '#888' }}>※Gemma 4やGemini 3以降のモデルで使用。推論の深さを調整します。</small>
               </div>
+              <div className={styles.formGroup}>
+                <label>System Prompt (Battle)</label>
+                <textarea 
+                  value={systemPrompt} 
+                  onChange={e => setSystemPrompt(e.target.value)} 
+                  className={styles.textarea}
+                  style={{ minHeight: '120px' }}
+                  required
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Epilogue Prompt (After-story)</label>
+                <textarea 
+                  value={epiloguePrompt} 
+                  onChange={e => setEpiloguePrompt(e.target.value)} 
+                  className={styles.textarea}
+                  style={{ minHeight: '120px' }}
+                  required
+                />
+              </div>
+              <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
+              
+              <div className={styles.formGroup}>
+                <label>Save as New Preset</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input 
+                    type="text" 
+                    value={newPresetName} 
+                    onChange={e => setNewPresetName(e.target.value)} 
+                    className={styles.input}
+                    placeholder="Preset name..."
+                  />
+                  <Button type="button" variant="secondary" onClick={handleSaveNewPreset} disabled={!newPresetName.trim()}>
+                    Save Preset
+                  </Button>
+                </div>
+              </div>
+
               <div className={styles.modalActions}>
                 <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
-                <Button type="submit">Save Settings</Button>
+                <Button type="submit">Apply Settings</Button>
               </div>
             </form>
           </div>

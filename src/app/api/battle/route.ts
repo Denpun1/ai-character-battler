@@ -3,14 +3,32 @@ import { GoogleGenAI } from "@google/genai";
 
 export async function POST(req: NextRequest) {
   try {
-    const { p1, p2, systemPrompt, model, temperature, showThinking, thinkingBudget, provider } = await req.json();
+    const { 
+      players, 
+      p1, p2, // Keep for backward compatibility
+      systemPrompt, 
+      model, 
+      temperature, 
+      showThinking, 
+      thinkingBudget, 
+      thinkingLevel, 
+      provider,
+      isEpilogue,
+      context
+    } = await req.json();
 
-    if (!p1 || !p2) {
+    // Support both players array and legacy p1/p2
+    const finalPlayers = players || (p1 && p2 ? [p1, p2] : []);
+
+    if (finalPlayers.length === 0 && !isEpilogue) {
       return new Response(JSON.stringify({ error: "Missing characters data" }), { status: 400 });
     }
 
     const selectedModel = model || 'gemini-2.5-flash';
     const selectedProvider = provider || 'google';
+    const isGemma4 = selectedModel.toLowerCase().includes('gemma-4');
+    const isGemini3 = selectedModel.toLowerCase().includes('gemini-3');
+    const isGemini2 = selectedModel.toLowerCase().includes('gemini-2');
     
     // 1. Logic for Google AI Studio
     if (selectedProvider === 'google') {
@@ -20,30 +38,40 @@ export async function POST(req: NextRequest) {
       }
 
       const ai = new GoogleGenAI({ apiKey });
-      let basePrompt = systemPrompt || '以下の2人のキャラクターが熱いバトルを行います。展開と勝敗を出力してください。最後に「勝者: [キャラクター名]」で終わること。';
+      let basePrompt = systemPrompt || (isEpilogue ? '後日譚を作成してください。' : '以下のキャラクターたちが熱いバトルを行います。展開と勝敗を出力してください。最後に「勝者: [キャラクター名]」で終わること。');
 
-      // Gemma 4 specific thinking (System Prompt Token)
-      if (showThinking && selectedModel.toLowerCase().includes('gemma')) {
-        basePrompt = '<|think|>\n' + basePrompt;
-      } else if (showThinking) {
-        basePrompt = '思考プロセス：シナリオを出力する前に、勝敗を決定するまでの詳細な思考プロセスや戦略の練り込みを、必ず <think> と </think> のタグで囲んで一番最初に出力してください。\n\n' + basePrompt;
+      // Thinking specific prompt logic
+      if (showThinking) {
+        if (selectedModel.toLowerCase().includes('gemma')) {
+          basePrompt = '<|think|>\n' + basePrompt;
+        } else {
+          basePrompt = '思考プロセス：出力を行う前に、詳細な思考プロセスを必ず <think> と </think> のタグで囲んで一番最初に出力してください。\n\n' + basePrompt;
+        }
       }
 
-      const p1ItemStr = p1.itemDetails ? `装備アイテム: ${p1.itemDetails.name}\n（効果: ${p1.itemDetails.description}）` : '';
-      const p2ItemStr = p2.itemDetails ? `装備アイテム: ${p2.itemDetails.name}\n（効果: ${p2.itemDetails.description}）` : '';
+      let playerInfo = '';
+      finalPlayers.forEach((p: any, idx: number) => {
+        const itemStr = p.itemDetails ? `装備アイテム: ${p.itemDetails.name}\n（効果: ${p.itemDetails.description}）` : '';
+        playerInfo += `【キャラクター${idx + 1}】\n名前: ${p.name}\n設定/特徴: ${p.skills}\n${itemStr}\n\n`;
+      });
 
-      const prompt = `${basePrompt}\n\n【キャラクター1】\n名前: ${p1.name}\n設定/特徴: ${p1.skills}\n${p1ItemStr}\n\n【キャラクター2】\n名前: ${p2.name}\n設定/特徴: ${p2.skills}\n${p2ItemStr}`;
+      let prompt = '';
+      if (isEpilogue) {
+        prompt = `${basePrompt}\n\n【これまでのバトルの流れ】\n${context}\n\n【登場キャラクター設定】\n${playerInfo}`;
+      } else {
+        prompt = `${basePrompt}\n\n${playerInfo}`;
+      }
 
       const config: any = {
         temperature: typeof temperature === 'number' ? temperature : 0.7,
       };
 
-      // Gemini Thinking Budget (Integer Tokens)
-      if (thinkingBudget > 0 && selectedModel.toLowerCase().includes('gemini')) {
-        config.thinking_config = {
-          include_thoughts: true,
-          thinking_budget: thinkingBudget,
-        };
+      if (showThinking) {
+        if (isGemini2 && thinkingBudget > 0) {
+          config.thinking_config = { include_thoughts: true, thinking_budget: thinkingBudget };
+        } else if (isGemma4 || isGemini3) {
+          config.thinking_config = { include_thoughts: true, thinking_level: thinkingLevel || 'HIGH' };
+        }
       }
 
       const responseStream = await ai.models.generateContentStream({
@@ -56,9 +84,7 @@ export async function POST(req: NextRequest) {
         async start(controller) {
           try {
             for await (const chunk of responseStream) {
-              if (chunk.text) {
-                controller.enqueue(chunk.text);
-              }
+              if (chunk.text) controller.enqueue(chunk.text);
             }
           } catch (err: any) {
             controller.error(err);
@@ -85,9 +111,18 @@ export async function POST(req: NextRequest) {
         basePrompt = '<|think|>\n' + basePrompt;
       }
 
-      const p1ItemStr = p1.itemDetails ? `装備アイテム: ${p1.itemDetails.name}\n（効果: ${p1.itemDetails.description}）` : '';
-      const p2ItemStr = p2.itemDetails ? `装備アイテム: ${p2.itemDetails.name}\n（効果: ${p2.itemDetails.description}）` : '';
-      const userPrompt = `【キャラクター1】\n名前: ${p1.name}\n設定/特徴: ${p1.skills}\n${p1ItemStr}\n\n【キャラクター2】\n名前: ${p2.name}\n設定/特徴: ${p2.skills}\n${p2ItemStr}`;
+      let playerInfo = '';
+      finalPlayers.forEach((p: any, idx: number) => {
+        const itemStr = p.itemDetails ? `装備アイテム: ${p.itemDetails.name}\n（効果: ${p.itemDetails.description}）` : '';
+        playerInfo += `【キャラクター${idx + 1}】\n名前: ${p.name}\n設定/特徴: ${p.skills}\n${itemStr}\n\n`;
+      });
+
+      let userPrompt = '';
+      if (isEpilogue) {
+        userPrompt = `【これまでのバトルの流れ】\n${context}\n\n【登場キャラクター設定】\n${playerInfo}`;
+      } else {
+        userPrompt = playerInfo;
+      }
 
       const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
         method: 'POST',
