@@ -26,6 +26,29 @@ function BattleArena() {
   const [isFinished, setIsFinished] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
 
+  // Load state from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('current_battle');
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setBattleLog(data.battleLog || '');
+        setEpilogueLog(data.epilogueLog || '');
+        setWinner(data.winner || null);
+        setIsFinished(data.isFinished || false);
+      } catch (e) {}
+    }
+  }, []);
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    if (battleLog || epilogueLog) {
+      localStorage.setItem('current_battle', JSON.stringify({
+        battleLog, epilogueLog, winner, isFinished
+      }));
+    }
+  }, [battleLog, epilogueLog, winner, isFinished]);
+
   useEffect(() => {
     if (isLoaded && settingsLoaded && itemsLoaded) {
       const playersParam = searchParams.get('players');
@@ -35,7 +58,6 @@ function BattleArena() {
       if (playersParam) {
         ids = playersParam.split(',');
       } else {
-        // Fallback to p1/p2 for old links
         const p1 = searchParams.get('p1');
         const p2 = searchParams.get('p2');
         if (p1) ids.push(p1);
@@ -47,30 +69,21 @@ function BattleArena() {
         return;
       }
 
-      // Parse overrides: id1:item1|id2:item2
       const overrides: Record<string, string> = {};
       if (overridesParam) {
         overridesParam.split('|').forEach(part => {
           const [id, item] = part.split(':');
           if (id && item) overrides[id] = item;
         });
-      } else {
-        // Fallback to p1item/p2item
-        const p1item = searchParams.get('p1item');
-        const p2item = searchParams.get('p2item');
-        if (ids[0] && p1item) overrides[ids[0]] = p1item;
-        if (ids[1] && p2item) overrides[ids[1]] = p2item;
       }
 
       const selectedFighters = ids.map(id => {
         const char = characters.find(c => c.id === id);
         if (!char) return null;
-        
         let finalItemId = char.itemId;
         const override = overrides[id];
         if (override === 'none') finalItemId = undefined;
         else if (override) finalItemId = override;
-        
         return { ...char, itemId: finalItemId };
       }).filter(Boolean);
 
@@ -78,8 +91,7 @@ function BattleArena() {
         router.push('/');
         return;
       }
-
-      setFighters(selectedFighters);
+      setFighters(selectedFighters as any[]);
     }
   }, [isLoaded, settingsLoaded, itemsLoaded, characters, searchParams, router]);
 
@@ -90,6 +102,7 @@ function BattleArena() {
     setEpilogueLog('');
     setIsFinished(false);
     setWinner(null);
+    localStorage.removeItem('current_battle');
 
     try {
       const res = await fetch('/api/battle', {
@@ -137,7 +150,7 @@ function BattleArena() {
       }
 
       if (user?.id) {
-        await supabase.from('battle_history').insert({
+        const { error: histError } = await supabase.from('battle_history').insert({
           user_id: user.id,
           p1_id: fighters[0].id,
           p2_id: fighters[1].id,
@@ -148,6 +161,11 @@ function BattleArena() {
           participant_ids: fighters.map(f => f.id),
           created_at: Date.now()
         });
+        
+        if (histError) {
+          console.error('History Save Error:', histError);
+          alert('Failed to save history: ' + histError.message);
+        }
       }
     } catch (error: any) {
       setBattleLog(`Error: ${error.message}`);
