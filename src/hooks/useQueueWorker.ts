@@ -113,10 +113,14 @@ export function useQueueWorker() {
         throw new Error('Characters not found for this battle');
       }
 
-      // 2. Call API
+      // 2. Call API with AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min total timeout
+
       const res = await fetch('/api/battle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           players: fighters,
           systemPrompt: data.system_prompt || settings.systemPrompt,
@@ -127,6 +131,7 @@ export function useQueueWorker() {
       });
 
       if (!res.ok) {
+        clearTimeout(timeoutId);
         const errorText = await res.text();
         let errorDetail = errorText;
         try {
@@ -141,10 +146,33 @@ export function useQueueWorker() {
       const decoder = new TextDecoder();
       let streamText = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        streamText += decoder.decode(value, { stream: true });
+      // Watchdog: If no data for 15 seconds, assume finished or stalled
+      let lastDataTime = Date.now();
+      const watchdogInterval = setInterval(() => {
+        if (Date.now() - lastDataTime > 15000 && streamText.length > 0) {
+          console.log('Queue worker: Watchdog triggered (no data for 15s). Finalizing...');
+          controller.abort();
+        }
+      }, 5000);
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          lastDataTime = Date.now();
+          const chunk = decoder.decode(value, { stream: true });
+          streamText += chunk;
+          console.log(`Queue worker: Received chunk (${streamText.length} bytes)`);
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log('Queue worker: Fetch aborted (timeout or watchdog)');
+        } else {
+          throw err;
+        }
+      } finally {
+        clearInterval(watchdogInterval);
+        clearTimeout(timeoutId);
       }
 
       // 3. Parse Winner
