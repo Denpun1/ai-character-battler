@@ -116,7 +116,7 @@ function BattleArena() {
 
     // Automatically add to queue as requested
     if (user?.id) {
-      supabase.from('battle_queue').insert({
+      const { error: queueError } = await supabase.from('battle_queue').insert({
         user_id: user.id,
         p1_id: fighters[0]?.id,
         p2_id: fighters[1]?.id,
@@ -132,9 +132,15 @@ function BattleArena() {
         thinking_level: settings.thinkingLevel,
         status: 'processing', // Mark as processing since we are running it now
         created_at: Date.now()
-      }).then(({ error }) => {
-        if (error) console.error('Auto-queue error:', error);
       });
+      
+      if (queueError) {
+        console.error('Auto-queue error:', queueError);
+        // We don't want to block the battle, but we should know if it failed
+        // alert('Queue failed: ' + queueError.message); 
+      } else {
+        console.log('Battle added to queue automatically');
+      }
     }
 
     try {
