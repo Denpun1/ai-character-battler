@@ -235,7 +235,7 @@ export default function QueuePage() {
               <Card key={q.id}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h3 style={{ fontSize: '1rem' }}>{fighterNames.filter(n => n !== 'Unknown').join(' vs ') || 'Unknown Battle'}</h3>
+                    <h3 style={{ fontSize: '1rem' }}>{fighterNames.filter((n: string) => n !== 'Unknown').join(' vs ') || 'Unknown Battle'}</h3>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.85rem' }}>
                       <span style={{ color: statusColor, fontWeight: 'bold' }}> {q.status.toUpperCase()} </span>
                       <span style={{ color: '#666' }}>{q.provider} / {q.model}</span>
