@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
-import ClientWrapper from "@/components/ClientWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,6 +19,9 @@ export const metadata: Metadata = {
   description: "Create unique characters and let them fight powered by Google Gemini AI.",
 };
 
+import NavBar from "@/components/NavBar";
+import { NotificationContainer } from "@/components/NotificationContainer";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,10 +32,9 @@ export default function RootLayout({
       <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
         <body>
           <NavBar />
+          <NotificationContainer />
           <main>
-            <ClientWrapper>
-              {children}
-            </ClientWrapper>
+            {children}
           </main>
         </body>
       </html>

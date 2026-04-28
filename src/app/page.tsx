@@ -174,37 +174,36 @@ export default function Home() {
   };
 
   const startBattle = async () => {
-    if (selectedIds.length < 2 || !isSignedIn) {
-      if (!isSignedIn) alert('Please sign in to start a battle.');
-      return;
-    }
-    
-    const playersData = selectedIds;
-    
-    const { error } = await supabase.from('battle_queue').insert({
-      user_id: user?.id,
+    if (selectedIds.length < 2 || !user) return;
+
+    // 1. Insert into Queue
+    const { data, error } = await supabase.from('battle_queue').insert({
+      user_id: user.id,
       p1_id: selectedIds[0],
       p2_id: selectedIds[1],
       participant_ids: selectedIds,
-      p1_item_id: itemOverrides[selectedIds[0]] === 'none' ? null : (itemOverrides[selectedIds[0]] || characters.find(c => c.id === selectedIds[0])?.itemId || null),
-      p2_item_id: itemOverrides[selectedIds[1]] === 'none' ? null : (itemOverrides[selectedIds[1]] || characters.find(c => c.id === selectedIds[1])?.itemId || null),
-      provider: settings.provider,
-      model: settings.model,
-      system_prompt: settings.systemPrompt,
-      epilogue_prompt: settings.epiloguePrompt,
-      temperature: settings.temperature,
-      thinking_budget: settings.thinkingBudget,
-      thinking_level: settings.thinkingLevel,
+      system_prompt: systemPrompt,
+      epilogue_prompt: epiloguePrompt,
+      model: model,
+      temperature: temperature,
+      provider: provider,
       status: 'pending',
       created_at: Date.now()
-    });
+    }).select('id').single();
 
     if (error) {
-      alert('Failed to queue battle: ' + error.message);
-    } else {
-      alert('対戦をキューに追加しました！生成完了までしばらくお待ちください（完了すると右上に通知が出ます）。');
-      setSelectedIds([]);
+      alert('Failed to start battle: ' + error.message);
+      return;
     }
+
+    alert('対戦をキューに追加しました。バックグラウンドで生成されます。');
+
+    // 2. Trigger the server-side worker (fire and forget)
+    fetch('/api/queue/worker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queueId: data.id, userId: user.id })
+    }).catch(err => console.error('Worker trigger failed:', err));
   };
 
 

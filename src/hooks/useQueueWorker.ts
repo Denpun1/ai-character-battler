@@ -29,19 +29,6 @@ export function useQueueWorker() {
     }, 8000);
   }, []);
 
-  const removeNotification = useCallback((id: string) => setNotifications(prev => prev.filter(n => n.id !== id)), []);
-
-  // Resaver: One-time cleanup on start
-  useEffect(() => {
-    if (user?.id) {
-      console.log('Queue worker: Cleaning up stale processing items...');
-      supabase.from('battle_queue')
-        .update({ status: 'pending', created_at: Date.now() })
-        .eq('user_id', user.id)
-        .eq('status', 'processing');
-    }
-  }, [user?.id]);
-
   const processNext = useCallback(async () => {
     if (!user || isProcessing || !characters.length || !items.length) {
       if (!user) console.log('Queue worker: Waiting for user login...');
@@ -113,14 +100,10 @@ export function useQueueWorker() {
         throw new Error('Characters not found for this battle');
       }
 
-      // 2. Call API with AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min total timeout
-
+      // 2. Call API
       const res = await fetch('/api/battle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
         body: JSON.stringify({
           players: fighters,
           systemPrompt: data.system_prompt || settings.systemPrompt,
@@ -130,49 +113,17 @@ export function useQueueWorker() {
         })
       });
 
-      if (!res.ok) {
-        clearTimeout(timeoutId);
-        const errorText = await res.text();
-        let errorDetail = errorText;
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorDetail = errorJson.error || errorJson.message || errorText;
-        } catch (e) {}
-        throw new Error(`API Error (${res.status}): ${errorDetail}`);
-      }
+      if (!res.ok) throw new Error('API request failed');
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('Failed to get stream reader');
       const decoder = new TextDecoder();
       let streamText = '';
 
-      // Watchdog: If no data for 15 seconds, assume finished or stalled
-      let lastDataTime = Date.now();
-      const watchdogInterval = setInterval(() => {
-        if (Date.now() - lastDataTime > 15000 && streamText.length > 0) {
-          console.log('Queue worker: Watchdog triggered (no data for 15s). Finalizing...');
-          controller.abort();
-        }
-      }, 5000);
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          lastDataTime = Date.now();
-          const chunk = decoder.decode(value, { stream: true });
-          streamText += chunk;
-          console.log(`Queue worker: Received chunk (${streamText.length} bytes)`);
-        }
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          console.log('Queue worker: Fetch aborted (timeout or watchdog)');
-        } else {
-          throw err;
-        }
-      } finally {
-        clearInterval(watchdogInterval);
-        clearTimeout(timeoutId);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        streamText += decoder.decode(value, { stream: true });
       }
 
       // 3. Parse Winner
