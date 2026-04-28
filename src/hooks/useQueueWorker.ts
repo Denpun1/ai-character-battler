@@ -113,7 +113,15 @@ export function useQueueWorker() {
         })
       });
 
-      if (!res.ok) throw new Error('API request failed');
+      if (!res.ok) {
+        const errorText = await res.text();
+        let errorDetail = errorText;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorDetail = errorJson.error || errorJson.message || errorText;
+        } catch (e) {}
+        throw new Error(`API Error (${res.status}): ${errorDetail}`);
+      }
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('Failed to get stream reader');
