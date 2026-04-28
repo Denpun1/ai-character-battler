@@ -114,6 +114,29 @@ function BattleArena() {
     setWinner(null);
     localStorage.removeItem(storageKey);
 
+    // Automatically add to queue as requested
+    if (user?.id) {
+      supabase.from('battle_queue').insert({
+        user_id: user.id,
+        p1_id: fighters[0]?.id,
+        p2_id: fighters[1]?.id,
+        participant_ids: fighters.map(f => f.id),
+        p1_item_id: fighters[0]?.itemId || null,
+        p2_item_id: fighters[1]?.itemId || null,
+        provider: settings.provider,
+        model: settings.model,
+        system_prompt: settings.systemPrompt,
+        epilogue_prompt: settings.epiloguePrompt,
+        temperature: settings.temperature,
+        thinking_budget: settings.thinkingBudget,
+        thinking_level: settings.thinkingLevel,
+        status: 'processing', // Mark as processing since we are running it now
+        created_at: Date.now()
+      }).then(({ error }) => {
+        if (error) console.error('Auto-queue error:', error);
+      });
+    }
+
     try {
       const res = await fetch('/api/battle', {
         method: 'POST',

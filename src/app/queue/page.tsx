@@ -235,19 +235,20 @@ export default function QueuePage() {
               <Card key={q.id}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h3 style={{ fontSize: '1rem' }}>{fighterNames.join(' vs ')}</h3>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.9rem' }}>
+                    <h3 style={{ fontSize: '1rem' }}>{fighterNames.filter(n => n !== 'Unknown').join(' vs ') || 'Unknown Battle'}</h3>
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.85rem' }}>
                       <span style={{ color: statusColor, fontWeight: 'bold' }}> {q.status.toUpperCase()} </span>
-                      <span style={{ color: '#666' }}>Engine: {q.provider} ({q.model})</span>
+                      <span style={{ color: '#666' }}>{q.provider} / {q.model}</span>
+                      <span style={{ color: '#888' }}>{new Date(q.created_at).toLocaleString()}</span>
                     </div>
                   </div>
                   <div>
                     {q.status !== 'processing' && (
-                      <Button variant="secondary" onClick={() => deleteQueueItem(q.id)}>Delete</Button>
+                      <Button variant="secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => deleteQueueItem(q.id)}>Delete</Button>
                     )}
                   </div>
                 </div>
-                {q.error_msg && <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.85rem' }}>{q.error_msg}</p>}
+                {q.error_msg && <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.85rem', background: 'rgba(220, 38, 38, 0.1)', padding: '0.5rem', borderRadius: '4px' }}>{q.error_msg}</p>}
               </Card>
             );
           })

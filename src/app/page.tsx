@@ -186,42 +186,6 @@ export default function Home() {
     router.push(url);
   };
 
-  const handleAddToQueue = async () => {
-    if (selectedIds.length < 2 || !isSignedIn) return;
-    
-    const playersData = selectedIds.map(id => {
-      const char = characters.find(c => c.id === id);
-      const overrideId = itemOverrides[id];
-      return {
-        id,
-        p1_item_id: overrideId === 'none' ? null : (overrideId || char?.itemId || null)
-      };
-    });
-
-    // Note: We'll take the first two for compatibility if the DB doesn't support array, 
-    // but ideally we should update the DB. For now, let's assume we can pass a player list.
-    // In our current queue table, we only have p1_id and p2_id.
-    // If we want multi-player in queue, we need a new schema or a JSON field.
-    await supabase.from('battle_queue').insert({
-      user_id: user.id,
-      p1_id: selectedIds[0],
-      p2_id: selectedIds[1],
-      participant_ids: selectedIds,
-      p1_item_id: itemOverrides[selectedIds[0]] === 'none' ? null : (itemOverrides[selectedIds[0]] || characters.find(c => c.id === selectedIds[0])?.itemId || null),
-      p2_item_id: itemOverrides[selectedIds[1]] === 'none' ? null : (itemOverrides[selectedIds[1]] || characters.find(c => c.id === selectedIds[1])?.itemId || null),
-      provider: settings.provider,
-      model: settings.model,
-      system_prompt: settings.systemPrompt,
-      epilogue_prompt: settings.epiloguePrompt,
-      temperature: settings.temperature,
-      thinking_budget: settings.thinkingBudget,
-      thinking_level: settings.thinkingLevel,
-      status: 'pending',
-      created_at: Date.now()
-    });
-    alert('Added to queue (Top 2 fighters used for now)!');
-    setSelectedIds([]);
-  };
 
   if (!charLoaded || !itemsLoaded || !settingsLoaded || !isAuthLoaded) return <div>Loading...</div>;
 
@@ -378,9 +342,6 @@ export default function Home() {
           <div style={{ display: 'flex', gap: '1rem' }}>
             <Button onClick={startBattle} disabled={selectedIds.length < 2}>
               Start {selectedIds.length}-Way Battle
-            </Button>
-            <Button variant="secondary" onClick={handleAddToQueue} disabled={selectedIds.length < 2 || !isSignedIn}>
-              Add to Queue
             </Button>
           </div>
         </div>
