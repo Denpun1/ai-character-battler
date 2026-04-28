@@ -173,17 +173,38 @@ export default function Home() {
     setNewPresetName('');
   };
 
-  const startBattle = () => {
-    if (selectedIds.length < 2) return;
-    const playersParam = selectedIds.join(',');
-    const overrides = Object.entries(itemOverrides)
-      .filter(([id, item]) => selectedIds.includes(id) && item)
-      .map(([id, item]) => `${id}:${item}`)
-      .join('|');
+  const startBattle = async () => {
+    if (selectedIds.length < 2 || !isSignedIn) {
+      if (!isSignedIn) alert('Please sign in to start a battle.');
+      return;
+    }
     
-    let url = `/battle?players=${playersParam}`;
-    if (overrides) url += `&overrides=${encodeURIComponent(overrides)}`;
-    router.push(url);
+    const playersData = selectedIds;
+    
+    const { error } = await supabase.from('battle_queue').insert({
+      user_id: user?.id,
+      p1_id: selectedIds[0],
+      p2_id: selectedIds[1],
+      participant_ids: selectedIds,
+      p1_item_id: itemOverrides[selectedIds[0]] === 'none' ? null : (itemOverrides[selectedIds[0]] || characters.find(c => c.id === selectedIds[0])?.itemId || null),
+      p2_item_id: itemOverrides[selectedIds[1]] === 'none' ? null : (itemOverrides[selectedIds[1]] || characters.find(c => c.id === selectedIds[1])?.itemId || null),
+      provider: settings.provider,
+      model: settings.model,
+      system_prompt: settings.systemPrompt,
+      epilogue_prompt: settings.epiloguePrompt,
+      temperature: settings.temperature,
+      thinking_budget: settings.thinkingBudget,
+      thinking_level: settings.thinkingLevel,
+      status: 'pending',
+      created_at: Date.now()
+    });
+
+    if (error) {
+      alert('Failed to queue battle: ' + error.message);
+    } else {
+      alert('対戦をキューに追加しました！生成完了までしばらくお待ちください（完了すると右上に通知が出ます）。');
+      setSelectedIds([]);
+    }
   };
 
 
