@@ -30,7 +30,10 @@ export function useQueueWorker() {
   }, []);
 
   const processNext = useCallback(async () => {
-    if (!user || isProcessing || !characters.length || !items.length) return;
+    if (!user || isProcessing || !characters.length || !items.length) {
+      if (!user) console.log('Queue worker: Waiting for user login...');
+      return;
+    }
 
     // Find a pending task
     const { data, error: fetchError } = await supabase

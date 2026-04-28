@@ -142,6 +142,9 @@ export function useSettings() {
 
       if (error) {
         console.error('Error saving settings to cloud:', error);
+        alert('Failed to save settings: ' + error.message);
+      } else {
+        console.log('Settings saved to cloud');
       }
     }
   };
