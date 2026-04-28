@@ -96,36 +96,6 @@ export default function QueuePage() {
         )}
       </div>
 
-      {showQueueModal && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '400px' }}>
-            <h2 className={styles.modalTitle}>Add Battle to Queue</h2>
-            <form onSubmit={addToQueue}>
-              <div className={styles.formGroup}>
-                <label>Player 1</label>
-                <select className={styles.input} value={selectedP1} onChange={e => setSelectedP1(e.target.value)} required>
-                  <option value="" disabled>Select Character</option>
-                  {characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div className={styles.formGroup}>
-                <label>Player 2</label>
-                <select className={styles.input} value={selectedP2} onChange={e => setSelectedP2(e.target.value)} required>
-                  <option value="" disabled>Select Character</option>
-                  {characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#666' }}>
-                The battle will be added to your queue using your current Settings ({settings.provider}). 
-              </div>
-              <div className={styles.modalActions}>
-                <Button variant="secondary" type="button" onClick={() => setShowQueueModal(false)}>Cancel</Button>
-                <Button type="submit">Add to Queue</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
