@@ -35,24 +35,27 @@ export function useQueueWorker() {
       return;
     }
 
-    // Find a pending task
+    // Find a task to process: pending, failed, or stale processing (3 mins old)
+    const threeMinsAgo = Date.now() - (3 * 60 * 1000);
+    
+    // We fetch one item that needs work
     const { data, error: fetchError } = await supabase
       .from('battle_queue')
       .select('*')
-      .eq('status', 'pending')
+      .or(`status.eq.pending,status.eq.failed,and(status.eq.processing,created_at.lt.${threeMinsAgo})`)
       .eq('user_id', user.id)
+      .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
       .limit(1)
       .single();
 
     if (fetchError || !data) return;
 
-    // Try to claim it
+    // Try to claim it (only if it's still in the same state we saw)
     const { error: claimError, count } = await supabase
       .from('battle_queue')
-      .update({ status: 'processing' })
+      .update({ status: 'processing', created_at: Date.now() }) // Refresh timestamp to prevent other tabs from stealing
       .eq('id', data.id)
-      .eq('status', 'pending')
       .select();
 
     if (claimError || !count) return;

@@ -9,6 +9,22 @@ import styles from '../page.module.css';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useSettings } from '@/hooks/useSettings';
+import { 
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { SortableQueueItem } from '@/components/SortableQueueItem';
 
 export default function QueuePage() {
   const { user, isLoaded } = useUser();
@@ -21,14 +37,45 @@ export default function QueuePage() {
   const [selectedP2, setSelectedP2] = useState('');
   const [showQueueModal, setShowQueueModal] = useState(false);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   const fetchQueue = async () => {
     if (user?.id) {
       const { data } = await supabase
         .from('battle_queue')
         .select('*')
         .eq('user_id', user.id)
+        .order('priority', { ascending: false })
         .order('created_at', { ascending: false });
       if (data) setQueue(data);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      const oldIndex = queue.findIndex((q) => q.id === active.id);
+      const newIndex = queue.findIndex((q) => q.id === over?.id);
+      
+      const newQueue = arrayMove(queue, oldIndex, newIndex);
+      setQueue(newQueue);
+
+      // Persist the new order by updating priority
+      // We set priority based on the new index (higher index = lower priority)
+      // For simplicity, we'll just update all items' priorities
+      const updates = newQueue.map((q, idx) => ({
+        id: q.id,
+        user_id: user?.id,
+        priority: newQueue.length - idx
+      }));
+
+      const { error } = await supabase.from('battle_queue').upsert(updates);
+      if (error) console.error('Failed to update priority:', error);
     }
   };
 
@@ -61,38 +108,31 @@ export default function QueuePage() {
         {queue.length === 0 ? (
           <div className={styles.emptyState}>Queue is empty. Start a fight from the Main Arena!</div>
         ) : (
-          queue.map(q => {
-            const fighterNames = q.participant_ids 
-              ? q.participant_ids.map((id: string) => characters.find(c => c.id === id)?.name || 'Unknown') 
-              : [characters.find(c => c.id === q.p1_id)?.name || 'Unknown', characters.find(c => c.id === q.p2_id)?.name || 'Unknown'];
-            
-            let statusColor = '#888';
-            if (q.status === 'pending') statusColor = '#d97706';
-            if (q.status === 'processing') statusColor = '#2563eb';
-            if (q.status === 'completed') statusColor = '#16a34a';
-            if (q.status === 'failed') statusColor = '#dc2626';
-
-            return (
-              <Card key={q.id}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 style={{ fontSize: '1rem' }}>{fighterNames.filter((n: string) => n !== 'Unknown').join(' vs ') || 'Unknown Battle'}</h3>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                      <span style={{ color: statusColor, fontWeight: 'bold' }}> {q.status.toUpperCase()} </span>
-                      <span style={{ color: '#666' }}>{q.provider} / {q.model}</span>
-                      <span style={{ color: '#888' }}>{new Date(q.created_at).toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <div>
-                    {q.status !== 'processing' && (
-                      <Button variant="secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => deleteQueueItem(q.id)}>Delete</Button>
-                    )}
-                  </div>
-                </div>
-                {q.error_msg && <p style={{ color: '#dc2626', marginTop: '0.5rem', fontSize: '0.85rem', background: 'rgba(220, 38, 38, 0.1)', padding: '0.5rem', borderRadius: '4px' }}>{q.error_msg}</p>}
-              </Card>
-            );
-          })
+          <DndContext 
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext 
+              items={queue.map(q => q.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {queue.map(q => {
+                const fighterNames = q.participant_ids 
+                  ? q.participant_ids.map((id: string) => characters.find(c => c.id === id)?.name || 'Unknown') 
+                  : [characters.find(c => c.id === q.p1_id)?.name || 'Unknown', characters.find(c => c.id === q.p2_id)?.name || 'Unknown'];
+                
+                return (
+                  <SortableQueueItem 
+                    key={q.id} 
+                    q={q} 
+                    fighterNames={fighterNames} 
+                    deleteQueueItem={deleteQueueItem} 
+                  />
+                );
+              })}
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
