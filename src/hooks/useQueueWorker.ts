@@ -29,6 +29,19 @@ export function useQueueWorker() {
     }, 8000);
   }, []);
 
+  const removeNotification = useCallback((id: string) => setNotifications(prev => prev.filter(n => n.id !== id)), []);
+
+  // Resaver: One-time cleanup on start
+  useEffect(() => {
+    if (user?.id) {
+      console.log('Queue worker: Cleaning up stale processing items...');
+      supabase.from('battle_queue')
+        .update({ status: 'pending', created_at: Date.now() })
+        .eq('user_id', user.id)
+        .eq('status', 'processing');
+    }
+  }, [user?.id]);
+
   const processNext = useCallback(async () => {
     if (!user || isProcessing || !characters.length || !items.length) {
       if (!user) console.log('Queue worker: Waiting for user login...');
