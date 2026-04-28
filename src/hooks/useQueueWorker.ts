@@ -35,27 +35,39 @@ export function useQueueWorker() {
       return;
     }
 
-    // Find a task to process: pending, failed, or stale processing (3 mins old)
-    const threeMinsAgo = Date.now() - (3 * 60 * 1000);
-    
-    // We fetch one item that needs work
-    const { data, error: fetchError } = await supabase
+    // Simplified fetch to avoid complex .or() issues
+    const { data: candidates, error: fetchError } = await supabase
       .from('battle_queue')
       .select('*')
-      .or(`status.eq.pending,status.eq.failed,and(status.eq.processing,created_at.lt.${threeMinsAgo})`)
+      .in('status', ['pending', 'failed', 'processing'])
       .eq('user_id', user.id)
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true })
-      .limit(1)
-      .single();
+      .limit(10); // Grab a few to check
 
-    if (fetchError || !data) return;
+    if (fetchError || !candidates) {
+      if (fetchError) console.error('Queue worker fetch error:', fetchError);
+      return;
+    }
 
-    // Try to claim it (only if it's still in the same state we saw)
+    // Find the best one to process
+    const now = Date.now();
+    const staleThreshold = 2 * 60 * 1000; // 2 mins
+    const data = candidates.find(q => 
+      q.status === 'pending' || 
+      q.status === 'failed' || 
+      (q.status === 'processing' && (now - q.created_at) > staleThreshold)
+    );
+
+    if (!data) return;
+
+    // Try to claim it
     const { error: claimError, count } = await supabase
       .from('battle_queue')
-      .update({ status: 'processing', created_at: Date.now() }) // Refresh timestamp to prevent other tabs from stealing
+      .update({ status: 'processing', created_at: now })
       .eq('id', data.id)
+      // Only claim if it's still in the state we expect (prevent double processing)
+      .or(`status.eq.${data.status}`) 
       .select();
 
     if (claimError || !count) return;

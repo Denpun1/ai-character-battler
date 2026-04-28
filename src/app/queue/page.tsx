@@ -92,16 +92,32 @@ export default function QueuePage() {
     fetchQueue();
   };
 
+  const resetStuckItems = async () => {
+    if (!user?.id) return;
+    const { error } = await supabase
+      .from('battle_queue')
+      .update({ status: 'pending', created_at: Date.now() })
+      .eq('user_id', user.id)
+      .eq('status', 'processing');
+    
+    if (error) alert('Failed to reset: ' + error.message);
+    else fetchQueue();
+  };
+
   if (!isLoaded || !charsLoaded || !settingsLoaded) return <div style={{ padding: '2rem' }}>Loading...</div>;
 
   return (
     <div className={styles.container}>
       <header className={styles.header}>
         <h1 className={styles.title}>Async Battle Queue</h1>
-        <p style={{ color: '#888' }}>
-          Battles are processed automatically in the background. 
-          Notifications will appear when they are ready.
-        </p>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <p style={{ color: '#888', margin: 0, flexGrow: 1 }}>
+            Battles are processed automatically in the background. 
+          </p>
+          <Button variant="secondary" onClick={resetStuckItems} style={{ fontSize: '0.8rem' }}>
+            🔄 Reset Stuck Battles
+          </Button>
+        </div>
       </header>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '4rem' }}>
