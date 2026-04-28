@@ -144,7 +144,7 @@ export default function QueuePage() {
           const match = streamText.match(/勝者[:：]\s*(.+)/);
           if (match && match[1]) matchWinner = match[1].trim();
 
-          const insertRes = await supabase.from('battle_history').insert({
+          const insertData: any = {
             user_id: user!.id,
             p1_id: fighters[0].id,
             p2_id: fighters[1].id,
@@ -154,12 +154,22 @@ export default function QueuePage() {
             log_text: streamText,
             participant_ids: fighters.map(f => f.id),
             created_at: Date.now()
-          }).select('id').single();
+          };
 
-          if (insertRes.data) {
-            await supabase.from('battle_queue').update({ status: 'completed', result_id: insertRes.data.id, error_msg: null }).eq('id', data.id);
+          const { data: histData, error: histError } = await supabase.from('battle_history').insert(insertData).select('id').single();
+
+          if (histError) {
+            console.error('Queue History Save Error:', histError);
+            if (histError.message.includes('participant_ids')) {
+               const { participant_ids, ...fallbackData } = insertData;
+               const { data: fbData, error: fbErr } = await supabase.from('battle_history').insert(fallbackData).select('id').single();
+               if (fbErr) throw fbErr;
+               await supabase.from('battle_queue').update({ status: 'completed', result_id: fbData.id, error_msg: null }).eq('id', data.id);
+            } else {
+               throw histError;
+            }
           } else {
-            throw new Error('DB History Insert Error');
+            await supabase.from('battle_queue').update({ status: 'completed', result_id: histData.id, error_msg: null }).eq('id', data.id);
           }
         } catch (err: any) {
           console.error("Queue process error, retrying...", err);

@@ -26,9 +26,12 @@ function BattleArena() {
   const [isFinished, setIsFinished] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
 
-  // Load state from localStorage on mount
+  const playersParam = searchParams.get('players') || '';
+  const storageKey = `current_battle_${playersParam}`;
+
+  // Load state from localStorage on mount or when players change
   useEffect(() => {
-    const saved = localStorage.getItem('current_battle');
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const data = JSON.parse(saved);
@@ -36,22 +39,29 @@ function BattleArena() {
         setEpilogueLog(data.epilogueLog || '');
         setWinner(data.winner || null);
         setIsFinished(data.isFinished || false);
-      } catch (e) {}
+      } catch (e) {
+        console.error('Error loading battle state:', e);
+      }
+    } else {
+      // Clear if no saved state for this specific player combo
+      setBattleLog('');
+      setEpilogueLog('');
+      setWinner(null);
+      setIsFinished(false);
     }
-  }, []);
+  }, [storageKey]);
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
-    if (battleLog || epilogueLog) {
-      localStorage.setItem('current_battle', JSON.stringify({
+    if (battleLog || epilogueLog || isFinished) {
+      localStorage.setItem(storageKey, JSON.stringify({
         battleLog, epilogueLog, winner, isFinished
       }));
     }
-  }, [battleLog, epilogueLog, winner, isFinished]);
+  }, [storageKey, battleLog, epilogueLog, winner, isFinished]);
 
   useEffect(() => {
     if (isLoaded && settingsLoaded && itemsLoaded) {
-      const playersParam = searchParams.get('players');
       const overridesParam = searchParams.get('overrides');
       
       let ids: string[] = [];
@@ -93,7 +103,7 @@ function BattleArena() {
       }
       setFighters(selectedFighters as any[]);
     }
-  }, [isLoaded, settingsLoaded, itemsLoaded, characters, searchParams, router]);
+  }, [isLoaded, settingsLoaded, itemsLoaded, characters, searchParams, router, playersParam]);
 
   const startFight = async () => {
     if (fighters.length < 2) return;
@@ -102,7 +112,7 @@ function BattleArena() {
     setEpilogueLog('');
     setIsFinished(false);
     setWinner(null);
-    localStorage.removeItem('current_battle');
+    localStorage.removeItem(storageKey);
 
     try {
       const res = await fetch('/api/battle', {
@@ -154,10 +164,10 @@ function BattleArena() {
       }
 
       if (user?.id) {
-        // Prepare IDs safely
         const fIds = fighters.filter(f => f && f.id).map(f => f.id);
         
-        const { error: histError } = await supabase.from('battle_history').insert({
+        // Attempt to save. If it fails, we'll log it.
+        const historyData: any = {
           user_id: user.id,
           p1_id: fighters[0]?.id || null,
           p2_id: fighters[1]?.id || null,
@@ -165,13 +175,32 @@ function BattleArena() {
           p2_item_id: fighters[1]?.itemId || null,
           winner_name: matchWinner,
           log_text: streamText,
-          participant_ids: fIds,
           created_at: Date.now()
-        });
+        };
+
+        // Only add participant_ids if we suspect it might exist, 
+        // but since we know it might fail, we'll try-catch or check schema.
+        // For now, let's include it and handle the error.
+        historyData.participant_ids = fIds;
+
+        const { error: histError } = await supabase.from('battle_history').insert(historyData);
         
         if (histError) {
-          console.error('History Save Error:', histError);
-          alert('Failed to save history: ' + histError.message + ' (Hint: ' + histError.hint + ')');
+          console.error('History Save Error (First Attempt):', histError);
+          
+          // Fallback: If participant_ids is missing, try without it
+          if (histError.message.includes('column') && histError.message.includes('participant_ids')) {
+            const { participant_ids, ...fallbackData } = historyData;
+            const { error: fallbackError } = await supabase.from('battle_history').insert(fallbackData);
+            if (fallbackError) {
+              console.error('History Save Error (Fallback):', fallbackError);
+              alert('Failed to save history: ' + fallbackError.message);
+            } else {
+              console.log('History saved via fallback (without participant_ids)');
+            }
+          } else {
+            alert('Failed to save history: ' + histError.message);
+          }
         } else {
           console.log('History saved successfully');
         }

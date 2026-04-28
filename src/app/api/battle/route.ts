@@ -38,7 +38,16 @@ export async function POST(req: NextRequest) {
       }
 
       const ai = new GoogleGenAI({ apiKey });
+      const playerCount = finalPlayers.length;
+      let participantInstruction = playerCount > 2 
+        ? `今回は以下の ${playerCount} 名によるバトルロイヤル（乱戦）です。全員が何らかの形で関与し、最後に生き残った一人の名前を「勝者: [名前]」の形式で出力してください。` 
+        : `今回は 2 名による 1vs1 のバトルです。最後に「勝者: [名前]」で終わること。`;
+
       let basePrompt = systemPrompt || (isEpilogue ? '後日譚を作成してください。' : 'キャラクターたちが熱いバトルを行い、最後に「勝者: [キャラクター名]」で終わること。');
+      
+      if (!isEpilogue) {
+        basePrompt = `${participantInstruction}\n\n${basePrompt}`;
+      }
       
       // Thinking specific prompt logic
       if (showThinking) {

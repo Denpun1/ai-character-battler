@@ -50,14 +50,33 @@ export default function HistoryPage() {
                               {idx < h.participant_ids.length - 1 && <span style={{ color: '#888', marginLeft: '0.4rem' }}>vs</span>}
                             </span>
                           ))
-                        ) : h.log_text && h.log_text.includes('【キャラクター3】') ? (
-                          <span style={{ fontStyle: 'italic', color: 'var(--primary)' }}>[Multi-Player Battle (全員のIDが未記録)]</span>
                         ) : (
-                          <>
-                            <span style={{ fontWeight: 'bold' }}>{characters.find(c => c.id === h.p1_id)?.name || 'Unknown'}</span>
-                            <span style={{ color: '#888' }}>vs</span>
-                            <span style={{ fontWeight: 'bold' }}>{characters.find(c => c.id === h.p2_id)?.name || 'Unknown'}</span>
-                          </>
+                          (() => {
+                            // Try to parse names from log if participant_ids is missing
+                            const names: string[] = [];
+                            const nameMatches = h.log_text?.matchAll(/【キャラクター\d+】\s*名前:\s*(.+)/g);
+                            if (nameMatches) {
+                              for (const m of nameMatches) if (m[1]) names.push(m[1].trim());
+                            }
+                            
+                            if (names.length > 0) {
+                              return names.map((name, idx) => (
+                                <span key={idx}>
+                                  <span style={{ fontWeight: 'bold' }}>{name}</span>
+                                  {idx < names.length - 1 && <span style={{ color: '#888', marginLeft: '0.4rem' }}>vs</span>}
+                                </span>
+                              ));
+                            }
+
+                            // Last fallback to p1/p2
+                            return (
+                              <>
+                                <span style={{ fontWeight: 'bold' }}>{characters.find(c => c.id === h.p1_id)?.name || 'Unknown'}</span>
+                                <span style={{ color: '#888' }}>vs</span>
+                                <span style={{ fontWeight: 'bold' }}>{characters.find(c => c.id === h.p2_id)?.name || 'Unknown'}</span>
+                              </>
+                            );
+                          })()
                         )}
                       </div>
                       <p style={{ fontWeight: 'bold', color: h.winner_name ? 'var(--primary)' : 'inherit', fontSize: '1.2rem' }}>
