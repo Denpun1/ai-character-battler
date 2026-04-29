@@ -55,7 +55,17 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const finalPrompt = `${systemPrompt}\n\n${playerInfo}`;
+      const finalPrompt = `
+${systemPrompt}
+
+### 参加者データ
+${playerInfo}
+
+### 重要ルール
+あなたは純粋な対戦シミュレーターとして振る舞ってください。
+挨拶、導入（「〜についてシミュレーションします」等）、解説、感想、結びの言葉などは一切出力しないでください。
+対戦の描写（本文）のみを直接出力してください。
+`.trim();
       const responseStream = await ai.models.generateContentStream({
         model: selectedModel,
         contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],

@@ -64,7 +64,17 @@ export async function POST(req: NextRequest) {
           if (!apiKey) throw new Error("GEMINI_API_KEY missing.");
           
           const genAI = new GoogleGenAI({ apiKey });
-          const finalPrompt = `${queueItem.system_prompt}\n\n${buildPrompt(queueItem, fighters)}`;
+          const finalPrompt = `
+${queueItem.system_prompt}
+
+### 参加者データ
+${buildPrompt(queueItem, fighters)}
+
+### 重要ルール
+あなたは純粋な対戦シミュレーターとして振る舞ってください。
+挨拶、導入（「〜についてシミュレーションします」等）、解説、感想、結びの言葉などは一切出力しないでください。
+対戦の描写（本文）のみを直接出力してください。
+`.trim();
           const stream = await genAI.models.generateContentStream({
             model: modelName,
             contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
