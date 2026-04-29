@@ -50,14 +50,9 @@ export async function POST(req: NextRequest) {
     });
 
     // 4. Run AI (Gemini) with Streaming
-    const apiKey = process.env.GEMINI_API_KEY || 
-                   process.env.GOOGLE_API_KEY || 
-                   process.env.NEXT_PUBLIC_GEMINI_API_KEY || 
-                   process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
-                   
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error("DEBUG: All API Key variants are empty. env keys:", Object.keys(process.env).filter(k => k.includes('KEY')));
-      throw new Error("API Key missing (GEMINI_API_KEY is not set in environment)");
+      throw new Error("Critical Configuration Error: GEMINI_API_KEY is not defined in the server environment.");
     }
     
     const ai = new GoogleGenAI({ apiKey });
