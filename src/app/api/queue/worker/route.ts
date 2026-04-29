@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       return { ...c, itemDetails: items?.find(i => i.id === itemId) };
     });
 
-    // 4. Run AI (Gemini)
+    // 4. Run AI (Gemini) with Streaming
     const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!apiKey) throw new Error("API Key missing");
     
@@ -58,19 +58,36 @@ export async function POST(req: NextRequest) {
       prompt += `【Fighter ${idx+1}】\nName: ${f.name}\nSkills: ${f.skills}\nItem: ${f.itemDetails?.name || 'None'}\n\n`;
     });
 
-    const result = await ai.models.generateContent({
+    const responseStream = await ai.models.generateContentStream({
       model: queueItem.model || "gemini-1.5-flash",
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         temperature: typeof queueItem.temperature === 'number' ? queueItem.temperature : 0.7,
       }
     });
-    
-    const text = result.text || "";
+
+    let fullText = '';
+    const startTime = Date.now();
+    try {
+      for await (const chunk of responseStream) {
+        if (chunk.text) {
+          fullText += chunk.text;
+        }
+        // Safety cutoff at 55 seconds
+        if (Date.now() - startTime > 55000) {
+          console.log("Edge safety cutoff reached (55s). Finalizing partial result.");
+          break;
+        }
+      }
+    } catch (e: any) {
+      console.error("Streaming error:", e);
+      // Even if streaming fails halfway, we might have enough text
+      if (fullText.length < 50) throw e;
+    }
 
     // 5. Parse Winner
     let winnerName = null;
-    const match = text.match(/勝者[:：]\s*(.+)/);
+    const match = fullText.match(/勝者[:：]\s*(.+)/);
     if (match && match[1]) winnerName = match[1].trim();
 
     // 6. Save to History
@@ -81,7 +98,7 @@ export async function POST(req: NextRequest) {
       p1_item_id: fighters[0].itemId || null,
       p2_item_id: fighters[1].itemId || null,
       winner_name: winnerName,
-      log_text: text,
+      log_text: fullText,
       participant_ids: fighters.map(f => f.id),
       created_at: Date.now()
     }).select('id').single();
@@ -92,14 +109,14 @@ export async function POST(req: NextRequest) {
     await supabase.from('battle_queue').update({ 
       status: 'completed', 
       result_id: histData.id,
-      winner_name: winnerName // Store winner name directly in queue for easy access
+      winner_name: winnerName 
     }).eq('id', queueId);
 
     return NextResponse.json({ success: true, historyId: histData.id });
 
   } catch (error: any) {
     console.error("Server Worker Error:", error);
-    // Try to mark as failed
+    await supabase.from('battle_queue').update({ status: 'failed', error_msg: error.message }).eq('id', queueId);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
