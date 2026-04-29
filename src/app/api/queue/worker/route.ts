@@ -51,17 +51,22 @@ export async function POST(req: NextRequest) {
     if (!apiKey) throw new Error("API Key missing");
     
     const ai = new GoogleGenAI({ apiKey });
-    const model = ai.getGenerativeModel({ model: queueItem.model || "gemini-1.5-flash" });
-
-    // Build prompt (Simplified version for server-side)
+    
+    // Build prompt
     let prompt = `${queueItem.system_prompt}\n\n`;
     fighters.forEach((f, idx) => {
       prompt += `【Fighter ${idx+1}】\nName: ${f.name}\nSkills: ${f.skills}\nItem: ${f.itemDetails?.name || 'None'}\n\n`;
     });
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const result = await ai.models.generateContent({
+      model: queueItem.model || "gemini-1.5-flash",
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        temperature: typeof queueItem.temperature === 'number' ? queueItem.temperature : 0.7,
+      }
+    });
+    
+    const text = result.text || "";
 
     // 5. Parse Winner
     let winnerName = null;
