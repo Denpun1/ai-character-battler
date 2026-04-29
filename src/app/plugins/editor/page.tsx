@@ -27,6 +27,8 @@ import AIGenerateNode from '@/plugins/nodes/AIGenerateNode';
 import LogNode from '@/plugins/nodes/LogNode';
 import ButtonNode from '@/plugins/nodes/ButtonNode';
 
+import { LayoutEditor } from '@/components/LayoutEditor';
+
 const nodeTypes = {
   start: StartNode,
   ai: AIGenerateNode,
@@ -35,15 +37,17 @@ const nodeTypes = {
 };
 
 function Editor() {
-  const searchParams = useSearchParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = searchParams.get('id');
+  const { user } = useUser();
   const { toObject } = useReactFlow();
 
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [modName, setModName] = useState('Loading...');
   const [isSaving, setIsSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<'flow' | 'layout'>('flow');
 
   useEffect(() => {
     if (id) fetchMod();
@@ -102,26 +106,66 @@ function Editor() {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#0f172a', color: 'white' }}>
-      <header style={{ padding: '1rem', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a', zIndex: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Link href="/plugins" style={{ color: 'white' }}><ChevronLeft /></Link>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{modName}</h1>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => addNode('start')} className="toolbar-btn"><Play size={16} /> Start</button>
-            <button onClick={() => addNode('ai')} className="toolbar-btn"><Plus size={16} /> AI</button>
-            <button onClick={() => addNode('log')} className="toolbar-btn"><Plus size={16} /> UI</button>
-            <button onClick={() => addNode('button')} className="toolbar-btn"><Plus size={16} /> Button</button>
-          </div>
+    <div style={{ width: '100vw', height: '100vh', background: '#020617', display: 'flex', flexDirection: 'column' }}>
+      {/* Editor Header */}
+      <header style={{ 
+        height: '60px', 
+        background: 'rgba(15, 23, 42, 0.8)', 
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 20px',
+        justifyContent: 'space-between',
+        zIndex: 10
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Link href="/plugins" style={{ color: 'white', opacity: 0.6 }}><ChevronLeft /></Link>
+          <h2 style={{ fontSize: '1.1rem', color: 'white', margin: 0 }}>{modName}</h2>
         </div>
-        <button onClick={saveMod} className="toolbar-btn" style={{ background: '#2563eb' }}>
+        
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => addNode('start')} className="toolbar-btn"><Play size={16} /> Start</button>
+          <button onClick={() => addNode('ai')} className="toolbar-btn"><Plus size={16} /> AI</button>
+          <button onClick={() => addNode('log')} className="toolbar-btn"><Plus size={16} /> UI</button>
+          <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)', margin: '0 10px' }} />
+          <button 
+            onClick={saveMod} 
+      <header style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <Button variant="secondary" onClick={() => router.push('/plugins')}>Back</Button>
+          <input 
+            type="text" 
+            value={modName} 
+            onChange={(e) => setModName(e.target.value)}
+            style={{ background: 'transparent', border: 'none', fontSize: '1.2rem', color: 'white', fontWeight: 'bold' }}
+          />
+        </div>
+
+        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px' }}>
+          <Button 
+            variant={viewMode === 'flow' ? 'primary' : 'secondary'} 
+            onClick={() => setViewMode('flow')}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+          >
+            Flow (Logic)
+          </Button>
+          <Button 
+            variant={viewMode === 'layout' ? 'primary' : 'secondary'} 
+            onClick={() => setViewMode('layout')}
+            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+          >
+            Layout (UI)
+          </Button>
+        </div>
+
+        <Button onClick={saveMod} disabled={isSaving}>
           {isSaving ? 'Saving...' : 'Save Plugin'}
-        </button>
+        </Button>
       </header>
 
-      <div style={{ flexGrow: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Flow Editor */}
-        <div style={{ flexGrow: 1, position: 'relative', borderRight: '1px solid #1e293b' }}>
+      <div style={{ flexGrow: 1, position: 'relative' }}>
+        {viewMode === 'flow' ? (
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -130,78 +174,18 @@ function Editor() {
             onConnect={onConnect}
             nodeTypes={nodeTypes}
             fitView
-            colorMode="dark"
           >
-            <Background color="#334155" />
+            <Background />
             <Controls />
           </ReactFlow>
-        </div>
-
-        {/* UI Layout Preview */}
-        <div style={{ width: '400px', background: '#020617', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-          <h2 style={{ fontSize: '1rem', color: '#3b82f6', borderBottom: '1px solid #1e293b', paddingBottom: '0.5rem' }}>UI Layout Preview</h2>
-          <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>ピクセル単位の配置確認（アリーナ基準）</p>
-          
-          <div style={{ 
-            width: '100%', 
-            height: '500px', 
-            background: 'rgba(255,255,255,0.02)', 
-            border: '1px dashed #334155', 
-            position: 'relative',
-            overflow: 'hidden',
-            borderRadius: '8px'
-          }}>
-            <div style={{ padding: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', fontSize: '0.7rem', opacity: 0.3 }}>
-              Arena Mockup (1000px Scale)
-            </div>
-
-            {nodes.map(node => {
-              if (node.type === 'button') {
-                return (
-                  <div key={node.id} style={{
-                    position: 'absolute',
-                    left: `${(Number(node.data.x) || 0) / 2.5}px`,
-                    top: `${(Number(node.data.y) || 0) / 2.5 + 40}px`,
-                    width: `${(Number(node.data.width) || 120) / 2.5}px`,
-                    height: `${(Number(node.data.height) || 40) / 2.5}px`,
-                    background: '#2563eb',
-                    borderRadius: '4px',
-                    fontSize: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: '1px solid white',
-                    color: 'white',
-                    fontWeight: 'bold'
-                  }}>
-                    {String(node.data.label || 'Btn')}
-                  </div>
-                );
-              }
-              if (node.type === 'log') {
-                return (
-                  <div key={node.id} style={{
-                    position: 'absolute',
-                    left: `${(Number(node.data.x) || 0) / 2.5}px`,
-                    top: `${(Number(node.data.y) || 0) / 2.5 + 40}px`,
-                    width: `${(Number(node.data.width) || 600) / 2.5}px`,
-                    height: `${(Number(node.data.height) || 150) / 2.5}px`,
-                    background: 'rgba(255,255,255,0.1)',
-                    border: '1px solid #3b82f6',
-                    padding: '4px',
-                    fontSize: '8px',
-                    overflow: 'hidden',
-                    color: '#94a3b8'
-                  }}>
-                    {String(node.data.mode === 'box' ? 'Log Box' : 'Plain Text Log')}
-                  </div>
-                );
-              }
-              return null;
-            })}
-          </div>
-          <small style={{ opacity: 0.4, textAlign: 'center' }}>※ 実際のアリーナ幅 1000px を基準に縮小表示しています</small>
-        </div>
+        ) : (
+          <LayoutEditor 
+            nodes={nodes} 
+            onUpdateNode={(id, data) => {
+              setNodes(nds => nds.map(n => n.id === id ? { ...n, data } : n));
+            }} 
+          />
+        )}
       </div>
 
       <style jsx>{`

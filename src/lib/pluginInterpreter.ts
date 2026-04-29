@@ -5,7 +5,6 @@ export interface PluginContext {
   userId: string;
   queueId?: string;
   battleResult?: any;
-  systemPrompt?: string;
   variables: Record<string, any>;
 }
 
@@ -88,12 +87,20 @@ export async function runPluginFlow(
       case "button":
         {
           const label = node.data.label || "Next";
-          const { x, y, width, height } = node.data;
+          const slot = node.data.slot || "actions";
           
           window.dispatchEvent(new CustomEvent('plugin:ui:button', {
-            detail: { label, x, y, width, height, nodeId: node.id }
+            detail: { 
+              label, 
+              slot, 
+              nodeId: node.id,
+              uiX: node.data.uiX,
+              uiY: node.data.uiY,
+              uiW: node.data.uiW
+            }
           }));
           
+          // Stop this branch and wait for click
           console.log(`[Interpreter] Flow paused at button: ${node.id}`);
           continue; 
         }
@@ -102,10 +109,18 @@ export async function runPluginFlow(
         {
           const message = resolveData(node.id, "message", node.data.message);
           const mode = node.data.mode || "box";
-          const { x, y, width, height } = node.data;
+          const slot = node.data.slot || "epilogue";
           
           window.dispatchEvent(new CustomEvent('plugin:ui:display', {
-            detail: { message, mode, x, y, width, height, id: node.id }
+            detail: { 
+              message, 
+              mode, 
+              slot, 
+              id: node.id,
+              uiX: node.data.uiX,
+              uiY: node.data.uiY,
+              uiW: node.data.uiW
+            }
           }));
         }
         break;

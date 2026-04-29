@@ -9,11 +9,13 @@ import { useUser } from '@clerk/nextjs';
 export function PluginManager({ 
   battleResult, 
   onEvent,
-  systemPrompt
+  systemPrompt,
+  epiloguePrompt
 }: { 
   battleResult?: any, 
   onEvent?: (e: any) => void,
-  systemPrompt?: string
+  systemPrompt?: string,
+  epiloguePrompt?: string
 }) {
   const { user } = useUser();
   const [activeMod, setActiveMod] = useState<any>(null);
@@ -49,13 +51,14 @@ export function PluginManager({
   // Listen for external triggers to run flow
   useEffect(() => {
     const handleRun = async (e: any) => {
-      const { triggerType, contextOverride, startNodeId } = e.detail;
       if (!activeMod) return;
+      const { triggerType, contextOverride } = e.detail;
       
       const context: PluginContext = {
         userId: user?.id || '',
         battleResult: battleResult || contextOverride?.battleResult,
         systemPrompt: systemPrompt || '',
+        epiloguePrompt: epiloguePrompt || '',
         variables: {}
       };
 

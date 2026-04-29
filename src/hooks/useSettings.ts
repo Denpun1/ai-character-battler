@@ -48,6 +48,7 @@ export function useSettings() {
         id: d.id,
         name: d.name,
         systemPrompt: d.system_prompt,
+        epiloguePrompt: d.epilogue_prompt || DEFAULT_SETTINGS.epiloguePrompt,
         model: d.model,
         temperature: d.temperature,
         showThinking: d.show_thinking,
@@ -86,6 +87,7 @@ export function useSettings() {
     if (data) {
       setSettings({
         systemPrompt: data.system_prompt || DEFAULT_SETTINGS.systemPrompt,
+        epiloguePrompt: data.epilogue_prompt || DEFAULT_SETTINGS.epiloguePrompt,
         model: data.model || DEFAULT_SETTINGS.model,
         temperature: data.temperature ?? DEFAULT_SETTINGS.temperature,
         showThinking: data.show_thinking ?? DEFAULT_SETTINGS.showThinking,
@@ -126,6 +128,7 @@ export function useSettings() {
         .upsert({
           user_id: userId,
           system_prompt: newSettings.systemPrompt,
+          epilogue_prompt: newSettings.epiloguePrompt,
           model: newSettings.model,
           temperature: newSettings.temperature,
           show_thinking: newSettings.showThinking,
@@ -150,6 +153,7 @@ export function useSettings() {
       user_id: userId,
       name,
       system_prompt: payload.systemPrompt,
+      epilogue_prompt: payload.epiloguePrompt,
       model: payload.model,
       temperature: payload.temperature,
       show_thinking: payload.showThinking,

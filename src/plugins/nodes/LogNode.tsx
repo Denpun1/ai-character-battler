@@ -29,23 +29,19 @@ function LogNode({ id, data, selected }: { id: string; data: any; selected: bool
             <option value="plain">Plain Text (Clean)</option>
           </select>
         </div>
-        <div className={styles.grid}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
           <div className={styles.field}>
             <label>X (px)</label>
-            <input type="number" className="nodrag" value={data.x || 0} onChange={(e) => updateNodeData(id, { x: parseInt(e.target.value) })} />
+            <input type="number" value={data.uiX || 0} onChange={(e) => updateNodeData(id, { uiX: parseInt(e.target.value) })} />
           </div>
           <div className={styles.field}>
             <label>Y (px)</label>
-            <input type="number" className="nodrag" value={data.y || 400} onChange={(e) => updateNodeData(id, { y: parseInt(e.target.value) })} />
+            <input type="number" value={data.uiY || 0} onChange={(e) => updateNodeData(id, { uiY: parseInt(e.target.value) })} />
           </div>
-          <div className={styles.field}>
-            <label>Width</label>
-            <input type="number" className="nodrag" value={data.width || 600} onChange={(e) => updateNodeData(id, { width: parseInt(e.target.value) })} />
-          </div>
-          <div className={styles.field}>
-            <label>Height</label>
-            <input type="number" className="nodrag" value={data.height || 150} onChange={(e) => updateNodeData(id, { height: parseInt(e.target.value) })} />
-          </div>
+        </div>
+        <div className={styles.field}>
+          <label>Width (px)</label>
+          <input type="number" value={data.uiW || 400} onChange={(e) => updateNodeData(id, { uiW: parseInt(e.target.value) })} />
         </div>
         <div className={styles.label}>Static Message (Fallback)</div>
         <input type="text" className={`${styles.input} nodrag`} value={data.message || ""} onChange={(e) => updateNodeData(id, { message: e.target.value })} placeholder="Static text..." />
