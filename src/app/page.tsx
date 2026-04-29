@@ -60,7 +60,7 @@ export default function Home() {
   const [pluginButtons, setPluginButtons] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'entry' | 'result'>('entry');
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
-  const [jsonMode, setJsonMode] = useState(false);
+  const [jsonMode, setJsonMode] = useState(true);
 
   useBattleRealtime();
 

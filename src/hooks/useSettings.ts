@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS: Settings = {
   thinkingBudget: 0,
   thinkingLevel: 'HIGH',
   provider: 'google',
-  jsonMode: false,
+  jsonMode: true,
 };
 
 export function useSettings() {

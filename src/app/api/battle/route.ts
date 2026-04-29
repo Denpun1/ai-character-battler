@@ -63,6 +63,26 @@ export async function POST(req: NextRequest) {
           ...config,
           systemInstruction: systemPrompt || undefined,
           responseMimeType: jsonMode ? 'application/json' : 'text/plain',
+          responseSchema: jsonMode ? {
+            type: "object",
+            properties: {
+              winner: { type: "string", description: "The winner of the battle" },
+              log: { type: "string", description: "The main battle log text" },
+              rounds: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    round: { type: "number" },
+                    action: { type: "string" },
+                    damage: { type: "number" },
+                    message: { type: "string" }
+                  }
+                }
+              }
+            },
+            required: ["winner", "log"]
+          } : undefined
         }
       });
 
