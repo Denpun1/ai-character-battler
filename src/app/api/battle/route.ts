@@ -58,10 +58,9 @@ export async function POST(req: NextRequest) {
 
       const responseStream = await ai.models.generateContentStream({
         model: selectedModel,
-        contents: [{ role: 'user', parts: [{ text: playerInfo }] }],
+        contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${playerInfo}` }] }],
         config: {
           ...config,
-          systemInstruction: systemPrompt || undefined,
           maxOutputTokens: 8192,
           responseMimeType: jsonMode ? 'application/json' : 'text/plain',
         }

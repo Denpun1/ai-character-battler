@@ -124,6 +124,7 @@ function Editor() {
         <LayoutDesigner 
           nodes={nodes} 
           onUpdateNode={handleUpdateNodeFromDesigner} 
+          onAddNode={addNode}
         />
       )}
       {/* Editor Header */}
@@ -146,7 +147,8 @@ function Editor() {
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => addNode('start')} className="toolbar-btn"><Play size={16} /> Start</button>
           <button onClick={() => addNode('ai')} className="toolbar-btn"><Plus size={16} /> AI</button>
-          <button onClick={() => addNode('log')} className="toolbar-btn"><Plus size={16} /> UI</button>
+          <button onClick={() => addNode('log')} className="toolbar-btn"><Plus size={16} /> Log</button>
+          <button onClick={() => addNode('button')} className="toolbar-btn"><Plus size={16} /> Button</button>
           <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)', margin: '0 10px' }} />
           <button 
             onClick={() => setIsLayoutOpen(true)}

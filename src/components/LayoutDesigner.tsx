@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from './Button';
-import { X, Move } from 'lucide-react';
+import { X, Move, Plus } from 'lucide-react';
 
 interface LayoutItem {
   id: string;
@@ -18,10 +18,12 @@ interface LayoutItem {
 
 export default function LayoutDesigner({ 
   nodes, 
-  onUpdateNode 
+  onUpdateNode,
+  onAddNode
 }: { 
   nodes: any[], 
-  onUpdateNode: (id: string, data: any) => void 
+  onUpdateNode: (id: string, data: any) => void,
+  onAddNode: (type: string) => void
 }) {
   const [items, setItems] = useState<LayoutItem[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -117,9 +119,19 @@ export default function LayoutDesigner({
             </div>
           )}
         </div>
-        <Button variant="secondary" onClick={() => window.dispatchEvent(new CustomEvent('layout-designer:close'))}>
-          <X size={20} /> Close
-        </Button>
+
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <Button variant="secondary" onClick={() => onAddNode('button')} style={{ borderColor: '#2563eb' }}>
+            <Plus size={16} /> Add Button
+          </Button>
+          <Button variant="secondary" onClick={() => onAddNode('log')} style={{ borderColor: '#2563eb' }}>
+            <Plus size={16} /> Add Log
+          </Button>
+          <div style={{ width: '1px', height: '24px', background: '#333', margin: '0 0.5rem' }} />
+          <Button variant="secondary" onClick={() => window.dispatchEvent(new CustomEvent('layout-designer:close'))}>
+            <X size={20} /> Close
+          </Button>
+        </div>
       </div>
 
       <div style={{ 

@@ -66,10 +66,9 @@ export async function POST(req: NextRequest) {
           const genAI = new GoogleGenAI({ apiKey });
           const stream = await genAI.models.generateContentStream({
             model: modelName,
-            contents: [{ role: 'user', parts: [{ text: buildPrompt(queueItem, fighters) }] }],
+            contents: [{ role: 'user', parts: [{ text: `${queueItem.system_prompt}\n\n${buildPrompt(queueItem, fighters)}` }] }],
             config: { 
               temperature: queueItem.temperature || 0.7,
-              systemInstruction: queueItem.system_prompt || undefined,
               maxOutputTokens: 8192,
               responseMimeType: queueItem.json_mode ? 'application/json' : 'text/plain',
             }
