@@ -226,7 +226,7 @@ export default function Home() {
 
   const handleSaveNewPreset = () => {
     if (!newPresetName.trim()) return;
-    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider, jsonMode });
     setNewPresetName('');
   };
 
@@ -309,7 +309,7 @@ export default function Home() {
         </button>
       </div>
 
-      {activeTab === 'entry' && (
+      {activeTab === 'entry' ? (
         <>
           {/* Characters Section */}
       <div className={styles.rosterSection} style={{ marginBottom: '3rem' }}>

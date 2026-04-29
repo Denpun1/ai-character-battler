@@ -55,7 +55,8 @@ export function useSettings() {
         showThinking: d.show_thinking,
         thinkingBudget: d.thinking_budget,
         thinkingLevel: d.thinking_level || 'HIGH',
-        provider: d.provider
+        provider: d.provider,
+        jsonMode: d.json_mode ?? true
       })));
     }
   }, [userId]);
