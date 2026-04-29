@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
         config: {
           ...config,
           systemInstruction: systemPrompt || undefined,
+          maxOutputTokens: 8192,
           responseMimeType: jsonMode ? 'application/json' : 'text/plain',
           responseSchema: jsonMode ? {
             type: "object",

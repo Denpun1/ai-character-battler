@@ -69,7 +69,28 @@ export async function POST(req: NextRequest) {
             contents: [{ role: 'user', parts: [{ text: buildPrompt(queueItem, fighters) }] }],
             config: { 
               temperature: queueItem.temperature || 0.7,
-              systemInstruction: queueItem.system_prompt || undefined
+              systemInstruction: queueItem.system_prompt || undefined,
+              maxOutputTokens: 8192,
+              responseMimeType: queueItem.json_mode ? 'application/json' : 'text/plain',
+              responseSchema: queueItem.json_mode ? {
+                type: "object",
+                properties: {
+                  winner: { type: "string" },
+                  log: { type: "string" },
+                  rounds: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        round: { type: "number" },
+                        action: { type: "string" },
+                        message: { type: "string" }
+                      }
+                    }
+                  }
+                },
+                required: ["winner", "log"]
+              } : undefined
             }
           });
 
@@ -80,7 +101,17 @@ export async function POST(req: NextRequest) {
           fullText = await runLightningAI(queueItem, fighters);
         }
 
-        const winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
+        let winnerName = null;
+        if (queueItem.json_mode) {
+          try {
+            const parsed = JSON.parse(fullText);
+            winnerName = parsed.winner || null;
+          } catch (e) {
+            winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
+          }
+        } else {
+          winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
+        }
 
         // Persist Result
         const { data: history, error: histError } = await supabase.from('battle_history').insert({
@@ -145,6 +176,8 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
         { role: 'user', content: buildPrompt(queueItem, fighters) }
       ],
       temperature: queueItem.temperature || 0.7,
+      response_format: queueItem.json_mode ? { type: "json_object" } : undefined,
+      max_tokens: 4096,
       stream: false
     })
   });
