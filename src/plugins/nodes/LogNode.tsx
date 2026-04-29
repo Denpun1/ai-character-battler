@@ -19,12 +19,26 @@ function LogNode({ id, data, selected }: { id: string; data: any; selected: bool
         <MessageSquare size={14} /> UI Display
       </div>
       <div className={styles.body}>
-        <div className={styles.label}>Display Mode</div>
-        <select className={`${styles.select} nodrag`} value={data.mode || "sidebar"} onChange={(e) => updateNodeData(id, { mode: e.target.value })}>
-          <option value="sidebar">Sidebar Log</option>
-          <option value="modal">Modal Popup</option>
-          <option value="floating">Floating Toast</option>
-        </select>
+        <div className={styles.field}>
+          <label>Display Mode</label>
+          <select 
+            value={data.mode || 'box'} 
+            onChange={(e) => updateNodeData(id, { mode: e.target.value })}
+          >
+            <option value="box">Box (Styled)</option>
+            <option value="plain">Plain Text (Clean)</option>
+          </select>
+        </div>
+        <div className={styles.field}>
+          <label>Display Slot</label>
+          <select 
+            value={data.slot || 'epilogue'} 
+            onChange={(e) => updateNodeData(id, { slot: e.target.value })}
+          >
+            <option value="epilogue">After Battle (Epilogue)</option>
+            <option value="sidebar">Sidebar (Log)</option>
+          </select>
+        </div>
         <div className={styles.label}>Static Message (Fallback)</div>
         <input type="text" className={`${styles.input} nodrag`} value={data.message || ""} onChange={(e) => updateNodeData(id, { message: e.target.value })} placeholder="Static text..." />
       </div>

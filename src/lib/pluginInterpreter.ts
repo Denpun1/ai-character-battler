@@ -11,9 +11,16 @@ export interface PluginContext {
   variables: Record<string, any>;
 }
 
-export async function runPluginFlow(nodes: Node[], edges: Edge[], triggerType: string, context: PluginContext) {
-  const startNode = nodes.find(n => n.type === 'start' && n.data?.triggerType === triggerType);
-  if (!startNode) return;
+export async function runPluginFlow(
+  nodes: any[], 
+  edges: any[], 
+  triggerType: string, 
+  context: PluginContext,
+  startNodeId?: string
+) {
+  console.log(`[Plugin Interpreter] Running flow for trigger: ${triggerType}${startNodeId ? ' starting from ' + startNodeId : ''}`);
+  
+  const nodeDataResults: Record<string, any> = {};
 
   const variables = { ...context.variables };
 
@@ -25,54 +32,77 @@ export async function runPluginFlow(nodes: Node[], edges: Edge[], triggerType: s
     return fallback;
   };
 
-  const executeNode = async (nodeId: string): Promise<void> => {
-    const node = nodes.find(n => n.id === nodeId);
-    if (!node) return;
+  // Find start node(s)
+  let currentNodes = startNodeId 
+    ? nodes.filter(n => n.id === startNodeId)
+    : nodes.filter(n => n.type === 'start' && n.data.trigger === triggerType);
 
-    let nextHandle = "trigger-out";
+  if (currentNodes.length === 0) {
+    console.log(`[Plugin Interpreter] No nodes found for trigger/id: ${triggerType}/${startNodeId}`);
+    return;
+  }
 
+  // Basic BFS/DFS traversal
+  let queue = [...currentNodes];
+  let visited = new Set();
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (!node || visited.has(node.id)) continue;
+    visited.add(node.id);
+
+    console.log(`[Interpreter] Processing node: ${node.type} (${node.id})`);
+
+    // Execute node logic
     switch (node.type) {
       case "start":
-        await delay(100);
+        // Start node just passes through
         break;
 
       case "ai":
         {
           const prompt = resolveData(node.id, "prompt", node.data.prompt);
-          const model = node.data.model === 'default' ? undefined : node.data.model;
           
           // Call internal API for follow-up
-          try {
-            const res = await fetch('/api/battle', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                isEpilogue: true,
-                context: context.battleResult?.log_text || "",
-                systemPrompt: prompt,
-                model: model,
-                players: context.battleResult?.participants || []
-              })
-            });
-            
-            if (res.ok) {
-              const text = await res.text();
-              variables[`${node.id}_out-text`] = text;
-            }
-          } catch (e) {
-            console.error("AI Node Error:", e);
-          }
+          const model = node.data.model === 'custom' ? node.data.customModel : node.data.model;
+          
+          const aiResponse = await fetch("/api/battle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: `${prompt}\n\n[Battle Context]\n${JSON.stringify(context.battleResult)}`,
+              model: model || "gemini-1.5-flash",
+            }),
+          }).then(r => r.json());
+
+          const text = aiResponse.result || "AI Response failed";
+          nodeDataResults[node.id] = { text };
         }
         break;
+
+      case "button":
+        {
+          const label = node.data.label || "Next";
+          const slot = node.data.slot || "actions";
+          
+          // Dispatch button display event
+          window.dispatchEvent(new CustomEvent('plugin:ui:button', {
+            detail: { label, slot, nodeId: node.id }
+          }));
+          
+          // STOP execution and wait for click
+          console.log(`[Interpreter] Paused at button: ${node.id}`);
+          return; 
+        }
 
       case "log":
         {
           const message = resolveData(node.id, "message", node.data.message);
-          const mode = node.data.mode || "sidebar";
+          const mode = node.data.mode || "box";
+          const slot = node.data.slot || "epilogue";
           
-          // Dispatch UI event to Battle page
           window.dispatchEvent(new CustomEvent('plugin:ui:display', {
-            detail: { message, mode, id: node.id }
+            detail: { message, mode, slot, id: node.id }
           }));
         }
         break;

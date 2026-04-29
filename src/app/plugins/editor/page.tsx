@@ -25,11 +25,13 @@ import Link from 'next/link';
 import StartNode from '@/plugins/nodes/StartNode';
 import AIGenerateNode from '@/plugins/nodes/AIGenerateNode';
 import LogNode from '@/plugins/nodes/LogNode';
+import ButtonNode from '@/plugins/nodes/ButtonNode';
 
 const nodeTypes = {
   start: StartNode,
   ai: AIGenerateNode,
-  log: LogNode
+  log: LogNode,
+  button: ButtonNode,
 };
 
 function Editor() {

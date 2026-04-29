@@ -26,12 +26,29 @@ function AIGenerateNode({ id, data, selected }: { id: string; data: any; selecte
           style={{ height: '60px', resize: 'none' }}
         />
         
-        <div className={styles.label}>Model</div>
-        <select className={`${styles.select} nodrag`} value={data.model || "default"} onChange={(e) => updateNodeData(id, { model: e.target.value })}>
-          <option value="default">User Setting (Default)</option>
-          <option value="gemma-4-31b-it">Gemma 4 (Balance)</option>
-          <option value="gemini-3.0-pro">Gemini 3 Pro (Deep)</option>
-        </select>
+        <div className={styles.field}>
+          <label>Model</label>
+          <select 
+            value={data.model || 'gemini-1.5-flash'} 
+            onChange={(e) => updateNodeData(id, { model: e.target.value })}
+          >
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="gemma-2-27b-it">Gemma 2 27B</option>
+            <option value="custom">-- Custom Model --</option>
+          </select>
+        </div>
+        {data.model === 'custom' && (
+          <div className={styles.field}>
+            <label>Custom Model Name</label>
+            <input 
+              type="text" 
+              value={data.customModel || ''} 
+              onChange={(e) => updateNodeData(id, { customModel: e.target.value })}
+              placeholder="e.g. gemma-4-7b-it"
+            />
+          </div>
+        )}
       </div>
 
       <Handle type="source" position={Position.Right} id="trigger-out" className={`${styles.handle} ${styles.trigger}`} />

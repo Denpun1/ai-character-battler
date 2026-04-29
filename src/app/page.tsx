@@ -58,6 +58,7 @@ export default function Home() {
   // Plugin System States
   const [battleLog, setBattleLog] = useState<string | null>(null);
   const [pluginLogs, setPluginLogs] = useState<any[]>([]);
+  const [pluginButtons, setPluginButtons] = useState<any[]>([]);
 
   useBattleRealtime();
 
@@ -79,13 +80,28 @@ export default function Home() {
       setPluginLogs(prev => [...prev, e.detail]);
     };
 
+    const handlePluginButton = (e: any) => {
+      setPluginButtons(prev => [...prev, e.detail]);
+    };
+
     window.addEventListener('battleStatusChange', handleStatusChange);
     window.addEventListener('plugin:ui:display', handlePluginUI);
+    window.addEventListener('plugin:ui:button', handlePluginButton);
     return () => {
       window.removeEventListener('battleStatusChange', handleStatusChange);
       window.removeEventListener('plugin:ui:display', handlePluginUI);
+      window.removeEventListener('plugin:ui:button', handlePluginButton);
     };
   }, []);
+
+  const handlePluginButtonClick = (nodeId: string) => {
+    // Remove the button once clicked
+    setPluginButtons(prev => prev.filter(b => b.nodeId !== nodeId));
+    // Trigger flow resumption
+    window.dispatchEvent(new CustomEvent('plugin:run', { 
+      detail: { triggerType: 'node_click', startNodeId: nodeId } 
+    }));
+  };
 
   const handleSelectChar = (id: string) => {
     setSelectedIds(prev => 
@@ -405,16 +421,49 @@ export default function Home() {
         </div>
       )}
 
-      {/* Results & Plugin Logs */}
-      {(battleLog || pluginLogs.length > 0) && (
-        <div className={styles.battleControls} style={{ marginTop: '2rem', display: 'block', background: 'rgba(0,0,0,0.3)' }}>
-          <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Battle Results</h2>
-          {battleLog && <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem', marginBottom: '2rem' }}>{battleLog}</div>}
-          {pluginLogs.map((log, i) => (
-            <div key={i} style={{ marginTop: '1.5rem', padding: '1.5rem', background: 'rgba(37, 99, 235, 0.1)', borderLeft: '4px solid #2563eb', borderRadius: '8px' }}>
-              <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{log.message}</div>
+      {/* Results & Plugin Logs Slots */}
+      {(battleLog || pluginLogs.length > 0 || pluginButtons.length > 0) && (
+        <div className={styles.battleControls} style={{ marginTop: '2rem', display: 'block', background: 'rgba(0,0,0,0.3)', position: 'relative' }}>
+          
+          {/* Action Bar (Buttons) */}
+          {pluginButtons.filter(b => b.slot === 'actions').length > 0 && (
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+              {pluginButtons.filter(b => b.slot === 'actions').map((btn, i) => (
+                <Button key={i} onClick={() => handlePluginButtonClick(btn.nodeId)}>
+                  {btn.label}
+                </Button>
+              ))}
             </div>
-          ))}
+          )}
+
+          <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Battle Results</h2>
+          
+          {/* Main Content (Epilogue Slot) */}
+          <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
+            {battleLog && <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>{battleLog}</div>}
+            
+            {pluginLogs.filter(log => log.slot === 'epilogue').map((log, i) => (
+              <div key={i} style={log.mode === 'box' ? { 
+                padding: '1.5rem', background: 'rgba(37, 99, 235, 0.1)', borderLeft: '4px solid #2563eb', borderRadius: '8px' 
+              } : { whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
+                {log.message}
+              </div>
+            ))}
+          </div>
+
+          {/* Sidebar / Supplementary Info Slot */}
+          {pluginLogs.filter(log => log.slot === 'sidebar').length > 0 && (
+            <div style={{ 
+              position: 'fixed', top: '100px', right: '2rem', width: '250px', 
+              display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100 
+            }}>
+              {pluginLogs.filter(log => log.slot === 'sidebar').map((log, i) => (
+                <div key={i} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px', fontSize: '0.85rem' }}>
+                  {log.message}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
