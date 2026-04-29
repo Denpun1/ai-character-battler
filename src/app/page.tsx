@@ -176,34 +176,35 @@ export default function Home() {
   const startBattle = async () => {
     if (selectedIds.length < 2 || !user) return;
 
-    // 1. Insert into Queue
-    const { data, error } = await supabase.from('battle_queue').insert({
-      user_id: user.id,
-      p1_id: selectedIds[0],
-      p2_id: selectedIds[1],
-      participant_ids: selectedIds,
-      system_prompt: systemPrompt,
-      epilogue_prompt: epiloguePrompt,
-      model: model,
-      temperature: temperature,
-      provider: provider,
-      status: 'pending',
-      created_at: Date.now()
-    }).select('id').single();
+    try {
+      // 1. Insert into Queue
+      const { data, error } = await supabase.from('battle_queue').insert({
+        user_id: user.id,
+        p1_id: selectedIds[0],
+        p2_id: selectedIds[1],
+        participant_ids: selectedIds,
+        system_prompt: systemPrompt,
+        epilogue_prompt: epiloguePrompt,
+        model: model,
+        temperature: temperature,
+        provider: provider,
+        status: 'pending',
+        created_at: Date.now()
+      }).select('id').single();
 
-    if (error) {
-      alert('Failed to start battle: ' + error.message);
-      return;
+      if (error) throw error;
+
+      // 2. Trigger the rebuilt processor
+      // We don't await this, as the UI will handle updates via Realtime
+      fetch('/api/queue/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queueId: data.id, userId: user.id })
+      }).catch(err => console.error('[Queue Trigger Error]', err));
+
+    } catch (err: any) {
+      alert('対戦の開始に失敗しました: ' + err.message);
     }
-
-    alert('対戦をキューに追加しました。バックグラウンドで生成されます。');
-
-    // 2. Trigger the server-side worker (fire and forget)
-    fetch('/api/queue/worker', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ queueId: data.id, userId: user.id })
-    }).catch(err => console.error('Worker trigger failed:', err));
   };
 
 
