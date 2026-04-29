@@ -189,14 +189,13 @@ export default function Home() {
     setShowThinking(settings.showThinking || false);
     setThinkingBudget(settings.thinkingBudget || 0);
     setThinkingLevel(settings.thinkingLevel || 'HIGH');
-    setEpiloguePrompt(settings.epiloguePrompt || '');
     setProvider(settings.provider || 'google');
     setIsSettingsOpen(true);
   };
 
   const saveSettingsForm = (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings({ systemPrompt, epiloguePrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
     setIsSettingsOpen(false);
   };
 
@@ -209,14 +208,13 @@ export default function Home() {
       setShowThinking(p.showThinking);
       setThinkingBudget(p.thinkingBudget);
       setThinkingLevel(p.thinkingLevel);
-      setEpiloguePrompt(p.epiloguePrompt);
       setProvider(p.provider);
     }
   };
 
   const handleSaveNewPreset = () => {
     if (!newPresetName.trim()) return;
-    createPreset(newPresetName, { systemPrompt, epiloguePrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
     setNewPresetName('');
   };
 

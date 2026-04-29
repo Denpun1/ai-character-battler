@@ -126,7 +126,6 @@ function BattleArena() {
         provider: settings.provider,
         model: settings.model,
         system_prompt: settings.systemPrompt,
-        epilogue_prompt: settings.epiloguePrompt,
         temperature: settings.temperature,
         thinking_budget: settings.thinkingBudget,
         thinking_level: settings.thinkingLevel,
@@ -251,7 +250,6 @@ function BattleArena() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           players: fighters.map(f => ({ ...f, itemDetails: items.find(i => i.id === f.itemId) })),
-          systemPrompt: settings.epiloguePrompt,
           model: settings.model,
           temperature: settings.temperature,
           showThinking: settings.showThinking,

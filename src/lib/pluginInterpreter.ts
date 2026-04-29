@@ -5,6 +5,7 @@ export interface PluginContext {
   userId: string;
   queueId?: string;
   battleResult?: any;
+  systemPrompt?: string;
   variables: Record<string, any>;
 }
 
