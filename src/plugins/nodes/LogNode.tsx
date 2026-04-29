@@ -29,15 +29,23 @@ function LogNode({ id, data, selected }: { id: string; data: any; selected: bool
             <option value="plain">Plain Text (Clean)</option>
           </select>
         </div>
-        <div className={styles.field}>
-          <label>Display Slot</label>
-          <select 
-            value={data.slot || 'epilogue'} 
-            onChange={(e) => updateNodeData(id, { slot: e.target.value })}
-          >
-            <option value="epilogue">After Battle (Epilogue)</option>
-            <option value="sidebar">Sidebar (Log)</option>
-          </select>
+        <div className={styles.grid}>
+          <div className={styles.field}>
+            <label>X (px)</label>
+            <input type="number" className="nodrag" value={data.x || 0} onChange={(e) => updateNodeData(id, { x: parseInt(e.target.value) })} />
+          </div>
+          <div className={styles.field}>
+            <label>Y (px)</label>
+            <input type="number" className="nodrag" value={data.y || 400} onChange={(e) => updateNodeData(id, { y: parseInt(e.target.value) })} />
+          </div>
+          <div className={styles.field}>
+            <label>Width</label>
+            <input type="number" className="nodrag" value={data.width || 600} onChange={(e) => updateNodeData(id, { width: parseInt(e.target.value) })} />
+          </div>
+          <div className={styles.field}>
+            <label>Height</label>
+            <input type="number" className="nodrag" value={data.height || 150} onChange={(e) => updateNodeData(id, { height: parseInt(e.target.value) })} />
+          </div>
         </div>
         <div className={styles.label}>Static Message (Fallback)</div>
         <input type="text" className={`${styles.input} nodrag`} value={data.message || ""} onChange={(e) => updateNodeData(id, { message: e.target.value })} placeholder="Static text..." />

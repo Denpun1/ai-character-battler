@@ -189,14 +189,13 @@ export default function Home() {
     setShowThinking(settings.showThinking || false);
     setThinkingBudget(settings.thinkingBudget || 0);
     setThinkingLevel(settings.thinkingLevel || 'HIGH');
-    setEpiloguePrompt(settings.epiloguePrompt || '');
     setProvider(settings.provider || 'google');
     setIsSettingsOpen(true);
   };
 
   const saveSettingsForm = (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings({ systemPrompt, epiloguePrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
     setIsSettingsOpen(false);
   };
 
@@ -209,14 +208,13 @@ export default function Home() {
       setShowThinking(p.showThinking);
       setThinkingBudget(p.thinkingBudget);
       setThinkingLevel(p.thinkingLevel);
-      setEpiloguePrompt(p.epiloguePrompt);
       setProvider(p.provider);
     }
   };
 
   const handleSaveNewPreset = () => {
     if (!newPresetName.trim()) return;
-    createPreset(newPresetName, { systemPrompt, epiloguePrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
     setNewPresetName('');
   };
 
@@ -473,46 +471,63 @@ export default function Home() {
           background: 'rgba(0,0,0,0.4)', 
           position: 'relative',
           border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          minHeight: '400px' // Ensure enough space for absolute elements
         }}>
           
-          {/* Action Bar (Fixed at top of results or bottom of screen) */}
-          {pluginButtons.length > 0 && (
-            <div style={{ 
-              display: 'flex', 
-              gap: '1rem', 
-              marginBottom: '1.5rem', 
-              padding: '1.2rem', 
-              background: 'rgba(37, 99, 235, 0.2)', 
-              borderRadius: '12px',
-              border: '1px solid #2563eb',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              animation: 'slideUp 0.3s ease-out'
-            }}>
-              {pluginButtons.map((btn, i) => (
-                <Button key={i} onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ minWidth: '150px' }}>
-                  {btn.label}
-                </Button>
-              ))}
-            </div>
-          )}
-
           <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#2563eb' }}>
             Battle Concluded
           </h2>
-          
-          <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
-            {battleLog && <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>{battleLog}</div>}
+
+          {/* Legacy/Default Battle Log */}
+          <div style={{ marginBottom: '2rem', whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
+            {battleLog}
+          </div>
+
+          {/* Plugin Canvas Layer (Absolute Positioning) */}
+          <div className="plugin-canvas" style={{ position: 'absolute', top: '4rem', left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
             
-            {pluginLogs.filter(log => log.slot === 'epilogue').map((log, i) => (
-              <div key={i} style={log.mode === 'box' ? { 
-                padding: '1.5rem', background: 'rgba(255, 255, 255, 0.05)', borderLeft: '4px solid #2563eb', borderRadius: '8px' 
-              } : { whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
+            {/* Buttons */}
+            {pluginButtons.map((btn, i) => (
+              <div key={`btn-${i}`} style={{ 
+                position: 'absolute', 
+                left: `${btn.x || 0}px`, 
+                top: `${btn.y || 0}px`, 
+                width: `${btn.width || 120}px`, 
+                height: `${btn.height || 40}px`,
+                pointerEvents: 'auto',
+                zIndex: 100
+              }}>
+                <Button onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ width: '100%', height: '100%' }}>
+                  {btn.label}
+                </Button>
+              </div>
+            ))}
+
+            {/* Logs/Displays */}
+            {pluginLogs.map((log, i) => (
+              <div key={`log-${i}`} style={{ 
+                position: 'absolute', 
+                left: `${log.x || 0}px`, 
+                top: `${log.y || 0}px`, 
+                width: `${log.width || 600}px`, 
+                height: `${log.height || 150}px`,
+                padding: log.mode === 'box' ? '1.5rem' : '0',
+                background: log.mode === 'box' ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+                borderLeft: log.mode === 'box' ? '4px solid #2563eb' : 'none',
+                borderRadius: '8px',
+                overflow: 'auto',
+                pointerEvents: 'auto',
+                whiteSpace: 'pre-wrap',
+                lineHeight: '1.8',
+                fontSize: '1.1rem'
+              }}>
                 {log.message}
               </div>
             ))}
           </div>
+        </div>
+      )}
 
           {/* Sidebar / Supplementary Info Slot */}
           {pluginLogs.filter(log => log.slot === 'sidebar').length > 0 && (
