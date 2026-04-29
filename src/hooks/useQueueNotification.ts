@@ -9,25 +9,23 @@ export function useQueueNotification() {
   useEffect(() => {
     if (!user?.id) return;
 
-    // Listen for updates to the battle_queue table for THIS user
+    console.log('useQueueNotification: Subscribing to battle_queue for user', user.id);
     const channel = supabase
-      .channel('queue_updates')
+      .channel(`queue_user_${user.id}`)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*', // Listen to all events
           schema: 'public',
           table: 'battle_queue',
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
+          console.log('useQueueNotification: Received payload', payload);
           const newItem = payload.new as any;
-          const oldItem = payload.old as any;
-
-          // Detect transition to completed
-          if (newItem.status === 'completed' && oldItem.status !== 'completed') {
-            // We show a browser notification or a simple alert for now
-            // To be more "premium", we'll dispatch a custom event
+          
+          if (newItem.status === 'completed') {
+            console.log('useQueueNotification: Battle completed!', newItem.id);
             const event = new CustomEvent('battleCompleted', { 
               detail: { 
                 id: newItem.id, 
@@ -38,7 +36,8 @@ export function useQueueNotification() {
             window.dispatchEvent(event);
           }
           
-          if (newItem.status === 'failed' && oldItem.status !== 'failed') {
+          if (newItem.status === 'failed') {
+             console.log('useQueueNotification: Battle failed', newItem.error_msg);
              const event = new CustomEvent('battleFailed', { 
               detail: { message: newItem.error_msg } 
             });
@@ -46,7 +45,9 @@ export function useQueueNotification() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('useQueueNotification: Subscription status', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
