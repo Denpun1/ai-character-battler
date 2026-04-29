@@ -160,10 +160,10 @@ function Editor() {
                 return (
                   <div key={node.id} style={{
                     position: 'absolute',
-                    left: `${(node.data.x || 0) / 2.5}px`,
-                    top: `${(node.data.y || 0) / 2.5 + 40}px`,
-                    width: `${(node.data.width || 120) / 2.5}px`,
-                    height: `${(node.data.height || 40) / 2.5}px`,
+                    left: `${(Number(node.data.x) || 0) / 2.5}px`,
+                    top: `${(Number(node.data.y) || 0) / 2.5 + 40}px`,
+                    width: `${(Number(node.data.width) || 120) / 2.5}px`,
+                    height: `${(Number(node.data.height) || 40) / 2.5}px`,
                     background: '#2563eb',
                     borderRadius: '4px',
                     fontSize: '10px',
@@ -174,7 +174,7 @@ function Editor() {
                     color: 'white',
                     fontWeight: 'bold'
                   }}>
-                    {node.data.label || 'Btn'}
+                    {String(node.data.label || 'Btn')}
                   </div>
                 );
               }
@@ -182,10 +182,10 @@ function Editor() {
                 return (
                   <div key={node.id} style={{
                     position: 'absolute',
-                    left: `${(node.data.x || 0) / 2.5}px`,
-                    top: `${(node.data.y || 0) / 2.5 + 40}px`,
-                    width: `${(node.data.width || 600) / 2.5}px`,
-                    height: `${(node.data.height || 150) / 2.5}px`,
+                    left: `${(Number(node.data.x) || 0) / 2.5}px`,
+                    top: `${(Number(node.data.y) || 0) / 2.5 + 40}px`,
+                    width: `${(Number(node.data.width) || 600) / 2.5}px`,
+                    height: `${(Number(node.data.height) || 150) / 2.5}px`,
                     background: 'rgba(255,255,255,0.1)',
                     border: '1px solid #3b82f6',
                     padding: '4px',
@@ -193,7 +193,7 @@ function Editor() {
                     overflow: 'hidden',
                     color: '#94a3b8'
                   }}>
-                    {node.data.mode === 'box' ? 'Log Box' : 'Plain Text Log'}
+                    {String(node.data.mode === 'box' ? 'Log Box' : 'Plain Text Log')}
                   </div>
                 );
               }

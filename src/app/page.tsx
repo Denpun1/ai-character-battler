@@ -1,50 +1,31 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useSettings } from '@/hooks/useSettings';
-import { useBattleRealtime } from '@/hooks/useBattleRealtime';
-import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
-import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { useUser } from '@clerk/nextjs';
 import { supabase } from '@/lib/supabase';
-import { PluginManager } from '@/components/PluginManager';
 import styles from './page.module.css';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { PluginManager } from '@/components/PluginManager';
 
-const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777'];
-
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
-  const { characters, isLoaded: charLoaded, addCharacter, editCharacter, deleteCharacter, fetchVariants, saveVariant, deleteVariant } = useCharacters();
-  const { items, isLoaded: itemsLoaded, addItem, editItem, deleteItem } = useItems();
-  const { settings, presets, isLoaded: settingsLoaded, saveSettings, createPreset, deletePreset } = useSettings();
-  const { isSignedIn, isLoaded: isAuthLoaded, user } = useUser();
+  const searchParams = useSearchParams();
+  const { characters, isLoaded } = useCharacters();
+  const { items, isLoaded: itemsLoaded } = useItems();
+  const { settings, isLoaded: settingsLoaded, saveSettings, createPreset, presets, deletePreset } = useSettings();
+  const { user } = useUser();
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [itemOverrides, setItemOverrides] = useState<Record<string, string>>({}); // { charId: itemId }
-  
-  // Modals state
-  const [isCharModalOpen, setIsCharModalOpen] = useState(false);
-  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [battleLog, setBattleLog] = useState<string>('');
+  const [isFighting, setIsFighting] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [editingCharId, setEditingCharId] = useState<string | null>(null);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   
-  // Character Form
-  const [charName, setCharName] = useState('');
-  const [charSkills, setCharSkills] = useState('');
-  const [charItemId, setCharItemId] = useState('');
-  const [charColor, setCharColor] = useState(COLORS[0]);
-  const [charVariants, setCharVariants] = useState<any[]>([]);
-  const [newVariantName, setNewVariantName] = useState('');
-
-  // Item Form
-  const [itemName, setItemName] = useState('');
-  const [itemDesc, setItemDesc] = useState('');
-
-  // Settings Form
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('');
   const [temperature, setTemperature] = useState(0.7);
@@ -54,132 +35,91 @@ export default function Home() {
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
   const [newPresetName, setNewPresetName] = useState('');
 
-  // Plugin System States
-  const [battleLog, setBattleLog] = useState<string | null>(null);
-  const [pluginLogs, setPluginLogs] = useState<any[]>([]);
   const [pluginButtons, setPluginButtons] = useState<any[]>([]);
-
-  useBattleRealtime();
+  const [pluginLogs, setPluginLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    const handleStatusChange = async (e: any) => {
-      const data = e.detail;
-      if (data.status === 'completed' && data.resultId) {
-        const { data: result } = await supabase.from('battle_history').select('*').eq('id', data.resultId).single();
-        if (result) {
-          setBattleLog(result.log_text);
-          window.dispatchEvent(new CustomEvent('plugin:run', { 
-            detail: { triggerType: 'end', contextOverride: { battleResult: result } } 
-          }));
-        }
-      }
+    if (settingsLoaded) {
+      setSystemPrompt(settings.systemPrompt);
+      setModel(settings.model);
+      setTemperature(settings.temperature);
+      setShowThinking(settings.showThinking || false);
+      setThinkingBudget(settings.thinkingBudget || 0);
+      setThinkingLevel(settings.thinkingLevel || 'HIGH');
+      setProvider(settings.provider || 'google');
+    }
+  }, [settingsLoaded, settings]);
+
+  useEffect(() => {
+    const handleButton = (e: any) => setPluginButtons(prev => [...prev, e.detail]);
+    const handleDisplay = (e: any) => setPluginLogs(prev => [...prev, e.detail]);
+    const handleReset = () => {
+      setPluginButtons([]);
+      setPluginLogs([]);
     };
 
-    const handlePluginUI = (e: any) => {
-      setPluginLogs(prev => [...prev, e.detail]);
-    };
+    window.addEventListener('plugin:ui:button', handleButton);
+    window.addEventListener('plugin:ui:display', handleDisplay);
+    window.addEventListener('plugin:reset', handleReset);
 
-    const handlePluginButton = (e: any) => {
-      setPluginButtons(prev => [...prev, e.detail]);
-    };
-
-    window.addEventListener('battleStatusChange', handleStatusChange);
-    window.addEventListener('plugin:ui:display', handlePluginUI);
-    window.addEventListener('plugin:ui:button', handlePluginButton);
     return () => {
-      window.removeEventListener('battleStatusChange', handleStatusChange);
-      window.removeEventListener('plugin:ui:display', handlePluginUI);
-      window.removeEventListener('plugin:ui:button', handlePluginButton);
+      window.removeEventListener('plugin:ui:button', handleButton);
+      window.removeEventListener('plugin:ui:display', handleDisplay);
+      window.removeEventListener('plugin:reset', handleReset);
     };
   }, []);
 
+  const toggleCharacter = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const startBattle = async () => {
+    if (selectedIds.length < 2 || !user) return;
+    setIsFighting(true);
+    setBattleLog('');
+    setIsFinished(false);
+    setPluginButtons([]);
+    setPluginLogs([]);
+
+    try {
+      const { data, error } = await supabase.from('battle_queue').insert({
+        user_id: user.id,
+        participant_ids: selectedIds,
+        system_prompt: systemPrompt,
+        model: model,
+        temperature: temperature,
+        provider: provider,
+        status: 'pending',
+        created_at: Date.now()
+      }).select('id').single();
+
+      if (error) throw error;
+
+      const subscription = supabase
+        .channel(`battle_${data.id}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'battle_queue', filter: `id=eq.${data.id}` }, (payload) => {
+          if (payload.new.status === 'completed') {
+            setBattleLog(payload.new.result);
+            setIsFighting(false);
+            setIsFinished(true);
+            subscription.unsubscribe();
+            window.dispatchEvent(new CustomEvent('plugin:run', { 
+              detail: { triggerType: 'end', contextOverride: { battleResult: payload.new.result } } 
+            }));
+          }
+        })
+        .subscribe();
+    } catch (err) {
+      console.error(err);
+      setIsFighting(false);
+    }
+  };
+
   const handlePluginButtonClick = (nodeId: string) => {
-    // Remove the button once clicked
-    setPluginButtons(prev => prev.filter(b => b.nodeId !== nodeId));
-    // Trigger flow resumption
+    setPluginButtons([]);
     window.dispatchEvent(new CustomEvent('plugin:run', { 
-      detail: { triggerType: 'node_click', startNodeId: nodeId } 
+      detail: { triggerType: 'button_click', startNodeId: nodeId } 
     }));
-  };
-
-  const handleSelectChar = (id: string) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  };
-
-  const openCharModal = async (id?: string) => {
-    if (id) {
-      const char = characters.find(c => c.id === id);
-      if (char) {
-        setEditingCharId(id);
-        setCharName(char.name);
-        setCharSkills(char.skills);
-        setCharItemId(char.itemId || '');
-        setCharColor(char.color || COLORS[0]);
-        const vars = await fetchVariants(id);
-        setCharVariants(vars);
-      }
-    } else {
-      setEditingCharId(null);
-      setCharName('');
-      setCharSkills('');
-      setCharItemId('');
-      setCharColor(COLORS[0]);
-      setCharVariants([]);
-    }
-    setNewVariantName('');
-    setIsCharModalOpen(true);
-  };
-
-  const saveChar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!charName.trim() || !charSkills.trim()) return;
-    if (editingCharId) {
-      await editCharacter(editingCharId, charName.trim(), charSkills.trim(), charItemId, charColor);
-    } else {
-      await addCharacter(charName.trim(), charSkills.trim(), charItemId, charColor);
-    }
-    setIsCharModalOpen(false);
-  };
-
-  const handleSaveVariant = async () => {
-    if (!editingCharId || !newVariantName.trim()) return;
-    await saveVariant(editingCharId, newVariantName, charSkills);
-    setNewVariantName('');
-    const vars = await fetchVariants(editingCharId);
-    setCharVariants(vars);
-  };
-
-  const loadVariant = (skills: string) => {
-    setCharSkills(skills);
-  };
-
-  const openItemModal = (id?: string) => {
-    if (id) {
-      const item = items.find(i => i.id === id);
-      if (item) {
-        setEditingItemId(id);
-        setItemName(item.name);
-        setItemDesc(item.description);
-      }
-    } else {
-      setEditingItemId(null);
-      setItemName('');
-      setItemDesc('');
-    }
-    setIsItemModalOpen(true);
-  };
-
-  const saveItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!itemName.trim() || !itemDesc.trim()) return;
-    if (editingItemId) {
-      editItem(editingItemId, itemName.trim(), itemDesc.trim());
-    } else {
-      addItem(itemName.trim(), itemDesc.trim());
-    }
-    setIsItemModalOpen(false);
   };
 
   const openSettings = () => {
@@ -199,9 +139,8 @@ export default function Home() {
     setIsSettingsOpen(false);
   };
 
-  const handleLoadPreset = (presetId: string) => {
-    const p = presets.find(x => x.id === presetId);
-    if (p) {
+  const handleSelectPreset = (p: any) => {
+    if (confirm(`Load preset "${p.name}"?`)) {
       setSystemPrompt(p.systemPrompt);
       setModel(p.model);
       setTemperature(p.temperature);
@@ -218,31 +157,7 @@ export default function Home() {
     setNewPresetName('');
   };
 
-  const startBattle = async () => {
-    if (selectedIds.length < 2 || !user) return;
-    try {
-      const { data, error } = await supabase.from('battle_queue').insert({
-        user_id: user.id,
-        participant_ids: selectedIds,
-        system_prompt: systemPrompt,
-        model: model,
-        temperature: temperature,
-        provider: provider,
-        status: 'pending',
-        created_at: Date.now()
-      }).select('id').single();
-      if (error) throw error;
-      fetch('/api/queue/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queueId: data.id, userId: user.id })
-      }).catch(err => console.error('[Queue Trigger Error]', err));
-    } catch (err: any) {
-      alert('対戦の開始に失敗しました: ' + err.message);
-    }
-  };
-
-  if (!charLoaded || !itemsLoaded || !settingsLoaded || !isAuthLoaded) return <div>Loading...</div>;
+  if (!isLoaded || !settingsLoaded || !itemsLoaded) return <div className={styles.container}>Loading Arena...</div>;
 
   return (
     <div className={styles.container}>
@@ -252,298 +167,149 @@ export default function Home() {
       />
       
       <header className={styles.header}>
-        <h1 className={styles.title}>Welcome to the Arena</h1>
-        <div>
-          <Button variant="secondary" onClick={openSettings}>Settings (Presets)</Button>
+        <div className={styles.headerLeft}>
+          <h1 className={styles.title}>AI Character Battler</h1>
+          <p className={styles.subtitle}>Select fighters and witness their clash</p>
+        </div>
+        <div className={styles.headerRight}>
+          <Button variant="secondary" onClick={openSettings}>Settings</Button>
+          <Button variant="secondary" onClick={() => router.push('/plugins')}>Plugins</Button>
         </div>
       </header>
 
-      {/* Characters Section */}
-      <div className={styles.rosterSection} style={{ marginBottom: '3rem' }}>
-        <div className={styles.rosterHeader}>
-          <h2>Characters</h2>
-          <Button onClick={() => openCharModal()}>New Character</Button>
+      <main className={styles.main}>
+        <div className={styles.characterGrid}>
+          {characters.map(char => (
+            <div 
+              key={char.id} 
+              className={`${styles.card} ${selectedIds.includes(char.id) ? styles.selected : ''}`}
+              onClick={() => toggleCharacter(char.id)}
+            >
+              <div className={styles.cardHeader}>
+                <h3 className={styles.cardName}>{char.name}</h3>
+                <div className={styles.badge} style={{ background: char.color }}>LV.1</div>
+              </div>
+              <p className={styles.cardDesc}>{char.skills}</p>
+            </div>
+          ))}
         </div>
-        {characters.length === 0 ? (
-          <div className={styles.emptyState}>No characters. Create some to start.</div>
-        ) : (
-          <div className={styles.grid}>
-            {characters.map(char => {
-              const equippedItem = char.itemId ? items.find(i => i.id === char.itemId) : null;
-              return (
-                <Card key={char.id} className={styles.characterCard} selected={selectedIds.includes(char.id)} onClick={() => handleSelectChar(char.id)}>
-                  <div className={styles.characterName}>
-                    <span style={{ color: char.color, marginRight: '8px' }}>●</span>
-                    {char.name}
-                  </div>
-                  {equippedItem && <div className={styles.characterItem}>Item: {equippedItem.name}</div>}
-                  <div className={styles.characterSkills}>
-                    {char.skills.length > 80 ? `${char.skills.substring(0, 80)}...` : char.skills}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', alignSelf: 'flex-end' }}>
-                    <button className={styles.deleteBtn} style={{ color: 'var(--foreground)' }} onClick={(e) => { e.stopPropagation(); openCharModal(char.id); }}>Edit</button>
-                    <button className={styles.deleteBtn} onClick={(e) => {
-                      e.stopPropagation();
-                      deleteCharacter(char.id);
-                      setSelectedIds(prev => prev.filter(id => id !== char.id));
-                    }}>Delete</button>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
-      {/* Items Section */}
-      <div className={styles.rosterSection}>
-        <div className={styles.rosterHeader}>
-          <h2>Items</h2>
-          <Button onClick={() => openItemModal()}>New Item</Button>
+        <div className={styles.actionSection}>
+          <Button 
+            onClick={startBattle} 
+            disabled={selectedIds.length < 2 || isFighting}
+            className={styles.fightButton}
+          >
+            {isFighting ? 'BATTLE IN PROGRESS...' : 'START CLASH'}
+          </Button>
         </div>
-        {items.length === 0 ? (
-          <div className={styles.emptyState}>No items. Create some to equip on characters.</div>
-        ) : (
-          <div className={styles.grid}>
-            {items.map(it => (
-              <Card key={it.id} className={styles.characterCard}>
-                <div className={styles.characterName}>{it.name}</div>
-                <div className={styles.characterSkills}>{it.description}</div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', alignSelf: 'flex-end' }}>
-                  <button className={styles.deleteBtn} style={{ color: 'var(--foreground)' }} onClick={() => openItemModal(it.id)}>Edit</button>
-                  <button className={styles.deleteBtn} onClick={() => deleteItem(it.id)}>Delete</button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {(selectedIds.length > 0) && (
-        <div className={styles.battleControls}>
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>Selected Fighters ({selectedIds.length})</h3>
-          <div className={styles.selectedFighters} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'stretch' }}>
-            {selectedIds.map((id, index) => {
-              const char = characters.find(c => c.id === id);
-              if (!char) return null;
-              return (
-                <div key={id} style={{ 
-                  background: 'rgba(255,255,255,0.05)', 
-                  borderLeft: `4px solid ${char.color}`,
-                  padding: '1rem',
-                  borderRadius: '8px',
-                  minWidth: '220px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem',
-                  position: 'relative'
+        {(battleLog || pluginLogs.length > 0 || pluginButtons.length > 0) && (
+          <div className={styles.resultsArea} style={{ position: 'relative', minHeight: '500px' }}>
+            <h2 className={styles.resultsTitle}>Battle Result</h2>
+            <div className={styles.battleText}>{battleLog}</div>
+
+            <div className="plugin-canvas" style={{ position: 'absolute', top: '100px', left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
+              {pluginButtons.map((btn, i) => (
+                <div key={`btn-${i}`} style={{ 
+                  position: 'absolute', 
+                  left: `${btn.x || 0}px`, 
+                  top: `${btn.y || 0}px`, 
+                  width: `${btn.width || 120}px`, 
+                  height: `${btn.height || 40}px`,
+                  pointerEvents: 'auto'
                 }}>
-                  <button style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#ff5555', cursor: 'pointer' }} onClick={() => handleSelectChar(id)}>✕</button>
-                  <div><strong>P{index + 1}:</strong> {char.name}</div>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    <label>Item: </label>
-                    <select value={itemOverrides[id] || ''} onChange={e => setItemOverrides(prev => ({ ...prev, [id]: e.target.value }))} className={styles.input} style={{ padding: '0.2rem', marginTop: '4px', width: '100%' }}>
-                      <option value="">-- Permanent --</option>
-                      <option value="none">-- Forced None --</option>
-                      {items.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <Button onClick={startBattle} disabled={selectedIds.length < 2}>Start {selectedIds.length}-Way Battle</Button>
-          </div>
-        </div>
-      )}
-
-      {/* Modals */}
-      {isCharModalOpen && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
-            <h2 className={styles.modalTitle}>{editingCharId ? 'Edit Character' : 'Create New Character'}</h2>
-            <form onSubmit={saveChar}>
-              <div className={styles.formGroup}><label>Name</label><input type="text" value={charName} onChange={e => setCharName(e.target.value)} className={styles.input} required /></div>
-              <div className={styles.formGroup}><label>Description</label><textarea value={charSkills} onChange={e => setCharSkills(e.target.value)} className={styles.textarea} required /></div>
-              <div className={styles.formGroup}><label>Item</label><select value={charItemId} onChange={e => setCharItemId(e.target.value)} className={styles.input}><option value="">-- None --</option>{items.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}</select></div>
-              <div className={styles.formGroup}><label>Color</label><div style={{ display: 'flex', gap: '8px' }}>{COLORS.map(c => <div key={c} onClick={() => setCharColor(c)} style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: c, border: charColor === c ? '2px solid var(--foreground)' : '2px solid transparent', cursor: 'pointer' }} />)}</div></div>
-              <div className={styles.modalActions}><Button variant="secondary" type="button" onClick={() => setIsCharModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
-              {editingCharId && (
-                <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                  <h3>📜 History & Variants</h3>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                    <input type="text" value={newVariantName} onChange={e => setNewVariantName(e.target.value)} className={styles.input} placeholder="Variant name..." />
-                    <Button type="button" variant="secondary" onClick={handleSaveVariant} disabled={!newVariantName.trim()}>Save as Variant</Button>
-                  </div>
-                  <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                    {charVariants.map(v => (
-                      <div key={v.id} style={{ padding: '0.5rem', background: 'var(--border)', marginBottom: '4px' }}>
-                        <div><strong>{v.isBackup ? 'Auto-Backup' : v.name}</strong></div>
-                        <Button type="button" variant="secondary" onClick={() => loadVariant(v.skills)}>Restore</Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isItemModalOpen && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
-            <h2 className={styles.modalTitle}>{editingItemId ? 'Edit Item' : 'Create New Item'}</h2>
-            <form onSubmit={saveItem}>
-              <div className={styles.formGroup}><label>Name</label><input type="text" value={itemName} onChange={e => setItemName(e.target.value)} className={styles.input} required /></div>
-              <div className={styles.formGroup}><label>Description</label><textarea value={itemDesc} onChange={e => setItemDesc(e.target.value)} className={styles.textarea} required /></div>
-              <div className={styles.modalActions}><Button variant="secondary" type="button" onClick={() => setIsItemModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isSettingsOpen && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
-            <h2>Settings</h2>
-            <form onSubmit={saveSettingsForm}>
-              <div className={styles.formGroup}><label>API Provider</label><select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}><option value="google">Google AI</option><option value="lightning">Lightning AI</option></select></div>
-              <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
-              <div className={styles.formGroup}><label>Temperature</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
-              <div className={styles.formGroup}>
-                <label>Instruction: Battle (バトル用指示)</label>
-                <textarea 
-                  value={systemPrompt} 
-                  onChange={e => setSystemPrompt(e.target.value)} 
-                  className={styles.textarea}
-                  style={{ minHeight: '120px' }}
-                  required
-                />
-              </div>
-              <div className={styles.formGroup}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={showThinking} 
-                    onChange={e => setShowThinking(e.target.checked)} 
-                  />
-                  AIの思考プロセスを表示する
-                </label>
-              </div>
-              <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
-              
-              <div className={styles.formGroup}>
-                <label>💾 Save current settings as New Instruction</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input 
-                    type="text" 
-                    value={newPresetName} 
-                    onChange={e => setNewPresetName(e.target.value)} 
-                    className={styles.input}
-                    placeholder="Instruction name (e.g. Comical Battle)"
-                  />
-                  <Button type="button" variant="secondary" onClick={handleSaveNewPreset} disabled={!newPresetName.trim()}>
-                    Save New
+                  <Button onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ width: '100%', height: '100%' }}>
+                    {btn.label}
                   </Button>
                 </div>
-              </div>
+              ))}
 
-              <div className={styles.modalActions}>
-                <Button variant="secondary" type="button" onClick={() => {
-                  setSystemPrompt('以下のキャラクターたちが熱いバトルを行います。設定に基づいて、臨場感のある劇的なバトルの展開と、最終的に誰が勝つかを決定し、シナリオを出力してください。文章は小説のようなトーンで作成してください。出力要件: 1. バトル開始の状況 2. スキル・アイテムを駆使した攻防 3. クライマックス 4. 明確な勝者の宣言（最後に「勝者: [キャラクター名]」という形式で終わること）');
-                }}>Reset Prompts to Default</Button>
-                <div style={{ flexGrow: 1 }} />
-                <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
-                <Button type="submit">Apply Settings</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Results & Plugin UI Slots */}
-      {(battleLog || pluginLogs.length > 0 || pluginButtons.length > 0) && (
-        <div className={styles.battleControls} style={{ 
-          marginTop: '2rem', 
-          display: 'block', 
-          background: 'rgba(0,0,0,0.4)', 
-          position: 'relative',
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-          minHeight: '400px' // Ensure enough space for absolute elements
-        }}>
-          
-          <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#2563eb' }}>
-            Battle Concluded
-          </h2>
-
-          {/* Legacy/Default Battle Log */}
-          <div style={{ marginBottom: '2rem', whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
-            {battleLog}
-          </div>
-
-          {/* Plugin Canvas Layer (Absolute Positioning) */}
-          <div className="plugin-canvas" style={{ position: 'absolute', top: '4rem', left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
-            
-            {/* Buttons */}
-            {pluginButtons.map((btn, i) => (
-              <div key={`btn-${i}`} style={{ 
-                position: 'absolute', 
-                left: `${btn.x || 0}px`, 
-                top: `${btn.y || 0}px`, 
-                width: `${btn.width || 120}px`, 
-                height: `${btn.height || 40}px`,
-                pointerEvents: 'auto',
-                zIndex: 100
-              }}>
-                <Button onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ width: '100%', height: '100%' }}>
-                  {btn.label}
-                </Button>
-              </div>
-            ))}
-
-            {/* Logs/Displays */}
-            {pluginLogs.map((log, i) => (
-              <div key={`log-${i}`} style={{ 
-                position: 'absolute', 
-                left: `${log.x || 0}px`, 
-                top: `${log.y || 0}px`, 
-                width: `${log.width || 600}px`, 
-                height: `${log.height || 150}px`,
-                padding: log.mode === 'box' ? '1.5rem' : '0',
-                background: log.mode === 'box' ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
-                borderLeft: log.mode === 'box' ? '4px solid #2563eb' : 'none',
-                borderRadius: '8px',
-                overflow: 'auto',
-                pointerEvents: 'auto',
-                whiteSpace: 'pre-wrap',
-                lineHeight: '1.8',
-                fontSize: '1.1rem'
-              }}>
-                {log.message}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-          {/* Sidebar / Supplementary Info Slot */}
-          {pluginLogs.filter(log => log.slot === 'sidebar').length > 0 && (
-            <div style={{ 
-              position: 'fixed', top: '100px', right: '2rem', width: '250px', 
-              display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100 
-            }}>
-              {pluginLogs.filter(log => log.slot === 'sidebar').map((log, i) => (
-                <div key={i} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px', fontSize: '0.85rem' }}>
+              {pluginLogs.map((log, i) => (
+                <div key={`log-${i}`} style={{ 
+                  position: 'absolute', 
+                  left: `${log.x || 0}px`, 
+                  top: `${log.y || 0}px`, 
+                  width: `${log.width || 600}px`, 
+                  height: `${log.height || 150}px`,
+                  padding: log.mode === 'box' ? '1.5rem' : '0',
+                  background: log.mode === 'box' ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+                  borderLeft: log.mode === 'box' ? '4px solid #2563eb' : 'none',
+                  borderRadius: '8px',
+                  overflow: 'auto',
+                  pointerEvents: 'auto',
+                  whiteSpace: 'pre-wrap'
+                }}>
                   {log.message}
                 </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
+      </main>
+
+      {isSettingsOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <h2>Battle Settings</h2>
+            <form onSubmit={saveSettingsForm}>
+              <div className={styles.formGroup}>
+                <label>API Provider</label>
+                <select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}>
+                  <option value="google">Google AI</option>
+                  <option value="lightning">Lightning AI</option>
+                </select>
+              </div>
+              <div className={styles.formGroup}>
+                <label>Model Name</label>
+                <input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Temperature ({temperature})</label>
+                <input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} />
+              </div>
+              <div className={styles.formGroup}>
+                <label>System Instruction (Battle Rules)</label>
+                <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '150px' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
+                <Button type="submit">Save Changes</Button>
+              </div>
+            </form>
+            
+            <div style={{ marginTop: '3rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '2rem' }}>
+              <h3>Instruction Presets</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                {presets.map(p => (
+                  <div key={p.id} className={styles.presetCard}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>{p.name}</div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <Button variant="secondary" onClick={() => handleSelectPreset(p)}>Load</Button>
+                      <Button variant="secondary" onClick={() => deletePreset(p.id)} style={{ color: '#ef4444' }}>Del</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: '2rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '0.5rem' }}>Save Current as New Preset</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input type="text" value={newPresetName} onChange={e => setNewPresetName(e.target.value)} className={styles.input} placeholder="Preset Name" />
+                  <Button onClick={handleSaveNewPreset} disabled={!newPresetName.trim()}>Save</Button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading Arena...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
