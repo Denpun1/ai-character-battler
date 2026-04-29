@@ -58,16 +58,21 @@ export async function runPluginFlow(
 
       case "ai":
         {
-          const prompt = resolveData(node.id, "prompt", node.data.prompt);
+          const nodePrompt = resolveData(node.id, "prompt", node.data.prompt);
           const model = node.data.model === 'custom' ? node.data.customModel : node.data.model;
           
+          // Merge user's global system instructions with the node's specific prompt
+          const combinedSystemPrompt = `${context.systemPrompt || ""}\n\n[Plugin Instruction]\n${nodePrompt}`;
+
           try {
             const aiResponse = await fetch("/api/battle", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                prompt: `${prompt}\n\n[Battle Context]\n${JSON.stringify(context.battleResult)}`,
+                systemPrompt: combinedSystemPrompt,
                 model: model || "gemini-1.5-flash",
+                isEpilogue: true, // Use epilogue mode for better formatting
+                context: JSON.stringify(context.battleResult)
               }),
             }).then(r => r.json());
 

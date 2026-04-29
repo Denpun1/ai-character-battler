@@ -250,7 +250,11 @@ export default function Home() {
 
   return (
     <div className={styles.container}>
-      <PluginManager battleResult={battleLog ? { log_text: battleLog } : undefined} />
+      <PluginManager 
+        battleResult={battleLog ? { log_text: battleLog } : undefined} 
+        systemPrompt={settings.systemPrompt}
+        epiloguePrompt={settings.epiloguePrompt}
+      />
       
       <header className={styles.header}>
         <h1 className={styles.title}>Welcome to the Arena</h1>

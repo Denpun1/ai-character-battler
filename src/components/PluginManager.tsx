@@ -6,7 +6,17 @@ import { supabase } from '@/lib/supabase';
 import { runPluginFlow, PluginContext } from '@/lib/pluginInterpreter';
 import { useUser } from '@clerk/nextjs';
 
-export function PluginManager({ battleResult, onEvent }: { battleResult?: any, onEvent?: (e: any) => void }) {
+export function PluginManager({ 
+  battleResult, 
+  onEvent,
+  systemPrompt,
+  epiloguePrompt
+}: { 
+  battleResult?: any, 
+  onEvent?: (e: any) => void,
+  systemPrompt?: string,
+  epiloguePrompt?: string
+}) {
   const { user } = useUser();
   const [activeMod, setActiveMod] = useState<any>(null);
 
@@ -47,6 +57,8 @@ export function PluginManager({ battleResult, onEvent }: { battleResult?: any, o
       const context: PluginContext = {
         userId: user?.id || '',
         battleResult: battleResult || contextOverride?.battleResult,
+        systemPrompt: systemPrompt || '',
+        epiloguePrompt: epiloguePrompt || '',
         variables: {}
       };
 
@@ -54,7 +66,8 @@ export function PluginManager({ battleResult, onEvent }: { battleResult?: any, o
         activeMod.flow_data.nodes, 
         activeMod.flow_data.edges, 
         triggerType, 
-        context
+        context,
+        startNodeId
       );
     };
 
