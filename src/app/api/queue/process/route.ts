@@ -1,128 +1,121 @@
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
 
 export const runtime = 'edge';
 
-// Initialize Supabase with Service Role for administrative DB access
+// Initialize Supabase with Service Role
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-/**
- * NEW QUEUE PROCESSOR (REBUILT FROM ZERO)
- * This API is designed to be called by a Supabase Webhook or a client trigger.
- */
 export async function POST(req: NextRequest) {
   let queueId: string | null = null;
   
   try {
     const body = await req.json();
-    // Support both direct ID call and Supabase Webhook payload
     queueId = body.record?.id || body.queueId;
-    
     if (!queueId) return NextResponse.json({ error: "Missing queue ID" }, { status: 400 });
 
-    // 1. ATOMIC LOCK & FETCH
-    // We check if it's already being processed to prevent race conditions
+    // 1. Initial Fetch & Lock
     const { data: queueItem, error: fetchError } = await supabase
       .from('battle_queue')
       .select('*')
       .eq('id', queueId)
       .single();
 
-    if (fetchError || !queueItem) throw new Error("Task not found in queue.");
+    if (fetchError || !queueItem) throw new Error("Task not found.");
     if (queueItem.status === 'completed') return NextResponse.json({ message: "Already finished." });
     
-    // 2. MARK AS PROCESSING (With timestamp for watchdog)
-    const { error: updateError } = await supabase.from('battle_queue').update({ 
+    // 2. Mark as Processing
+    await supabase.from('battle_queue').update({ 
       status: 'processing', 
       started_at: new Date().toISOString() 
     }).eq('id', queueId);
 
-    if (updateError) {
-      console.error("DB_UPDATE_ERROR:", updateError);
-      throw new Error(`Failed to update status to processing: ${updateError.message}. Make sure 'started_at' column exists.`);
-    }
-
-    // 3. FETCH CONTEXT (Characters, Items)
-    const [charsRes, itemsRes] = await Promise.all([
-      supabase.from('characters').select('*').in('id', queueItem.participant_ids || []),
-      supabase.from('items').select('*')
-    ]);
-
-    const fighters = charsRes.data?.map(c => ({
-      ...c,
-      itemDetails: itemsRes.data?.find(i => i.id === (c.id === queueItem.p1_id ? queueItem.p1_item_id : queueItem.p2_item_id) || c.itemId)
-    })) || [];
-
-    if (fighters.length < 2) throw new Error("Fighters configuration is invalid.");
-
-    // 4. EXECUTE AI BATTLE
-    const provider = queueItem.provider || 'google';
-    const modelName = queueItem.model || 'gemma-4-31b-it';
-    let fullText = "";
-
-    if (provider === 'google') {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Environment Error: GEMINI_API_KEY is missing.");
-      
-      const genAI = new GoogleGenAI({ apiKey });
-      const stream = await genAI.models.generateContentStream({
-        model: modelName,
-        contents: [{ role: 'user', parts: [{ text: buildPrompt(queueItem, fighters) }] }],
-        config: { temperature: queueItem.temperature || 0.7 }
-      });
-
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("AI Timeout")), 55000));
-      
+    // --- FIRE AND FORGET START ---
+    // The 'after' hook ensures this runs even after the response is sent
+    after(async () => {
       try {
-        for await (const chunk of stream) {
-          if (chunk.text) fullText += chunk.text;
-          if (Date.now() - new Date(queueItem.started_at || Date.now()).getTime() > 55000) break;
+        console.log(`[Worker] Starting background process for ${queueId}`);
+        
+        // Fetch Context
+        const [charsRes, itemsRes] = await Promise.all([
+          supabase.from('characters').select('*').in('id', queueItem.participant_ids || []),
+          supabase.from('items').select('*')
+        ]);
+
+        const fighters = charsRes.data?.map(c => ({
+          ...c,
+          itemDetails: itemsRes.data?.find(i => i.id === (c.id === queueItem.p1_id ? queueItem.p1_item_id : queueItem.p2_item_id) || c.itemId)
+        })) || [];
+
+        if (fighters.length < 2) throw new Error("Invalid fighters configuration.");
+
+        // AI Execution
+        const provider = queueItem.provider || 'google';
+        const modelName = queueItem.model || 'gemma-4-31b-it';
+        let fullText = "";
+
+        if (provider === 'google') {
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) throw new Error("GEMINI_API_KEY missing.");
+          
+          const genAI = new GoogleGenAI({ apiKey });
+          const stream = await genAI.models.generateContentStream({
+            model: modelName,
+            contents: [{ role: 'user', parts: [{ text: buildPrompt(queueItem, fighters) }] }],
+            config: { temperature: queueItem.temperature || 0.7 }
+          });
+
+          for await (const chunk of stream) {
+            if (chunk.text) fullText += chunk.text;
+          }
+        } else {
+          fullText = await runLightningAI(queueItem, fighters);
         }
-      } catch (e: any) {
-        if (fullText.length < 100) throw e; // Only fail if we got almost nothing
+
+        const winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
+
+        // Persist Result
+        const { data: history, error: histError } = await supabase.from('battle_history').insert({
+          user_id: queueItem.user_id,
+          p1_id: queueItem.p1_id,
+          p2_id: queueItem.p2_id,
+          winner_name: winnerName,
+          log_text: fullText,
+          participant_ids: fighters.map(f => f.id),
+          created_at: Date.now()
+        }).select('id').single();
+
+        if (histError) throw histError;
+
+        // Finalize
+        await supabase.from('battle_queue').update({
+          status: 'completed',
+          result_id: history.id,
+          winner_name: winnerName
+        }).eq('id', queueId);
+
+        console.log(`[Worker] Successfully completed ${queueId}`);
+
+      } catch (err: any) {
+        console.error(`[Worker Error] ${queueId}:`, err);
+        await supabase.from('battle_queue').update({ 
+          status: 'failed', 
+          error_msg: err.message 
+        }).eq('id', queueId);
       }
-    } else {
-      // Lightning AI / Other Provider implementation
-      fullText = await runLightningAI(queueItem, fighters);
-    }
+    });
+    // --- FIRE AND FORGET END ---
 
-    // 5. PARSE & PERSIST
-    const winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
-
-    const { data: history, error: histError } = await supabase.from('battle_history').insert({
-      user_id: queueItem.user_id,
-      p1_id: queueItem.p1_id,
-      p2_id: queueItem.p2_id,
-      winner_name: winnerName,
-      log_text: fullText,
-      participant_ids: fighters.map(f => f.id),
-      created_at: Date.now()
-    }).select('id').single();
-
-    if (histError) throw histError;
-
-    // 6. FINALIZE QUEUE
-    await supabase.from('battle_queue').update({
-      status: 'completed',
-      result_id: history.id,
-      winner_name: winnerName
-    }).eq('id', queueId);
-
-    return NextResponse.json({ success: true, historyId: history.id });
+    // Return immediately to the client
+    return NextResponse.json({ success: true, status: 'queued' }, { status: 202 });
 
   } catch (error: any) {
-    console.error("QUEUE_SYSTEM_ERROR:", error);
-    if (queueId) {
-      await supabase.from('battle_queue').update({ 
-        status: 'failed', 
-        error_msg: error.message 
-      }).eq('id', queueId);
-    }
+    console.error("QUEUE_TRIGGER_ERROR:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
