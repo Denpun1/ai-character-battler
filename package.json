@@ -15,6 +15,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "^1.48.0",
     "@supabase/supabase-js": "^2.101.1",
+    "@xyflow/react": "^12.10.2",
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^1.7.0",
     "next": "16.2.2",

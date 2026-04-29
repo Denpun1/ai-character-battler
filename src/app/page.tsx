@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useSettings } from '@/hooks/useSettings';
+import { useBattleRealtime } from '@/hooks/useBattleRealtime'; // Ensure this is imported
 import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
+import { PluginManager } from '@/components/PluginManager';
 import styles from './page.module.css';
 
 const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777'];
@@ -51,6 +53,38 @@ export default function Home() {
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
   const [epiloguePrompt, setEpiloguePrompt] = useState('');
   const [newPresetName, setNewPresetName] = useState('');
+
+  // Plugin System States
+  const [battleLog, setBattleLog] = useState<string | null>(null);
+  const [pluginLogs, setPluginLogs] = useState<any[]>([]);
+
+  useBattleRealtime();
+
+  useEffect(() => {
+    const handleStatusChange = async (e: any) => {
+      const data = e.detail;
+      if (data.status === 'completed' && data.resultId) {
+        const { data: result } = await supabase.from('battle_history').select('*').eq('id', data.resultId).single();
+        if (result) {
+          setBattleLog(result.log_text);
+          window.dispatchEvent(new CustomEvent('plugin:run', { 
+            detail: { triggerType: 'end', contextOverride: { battleResult: result } } 
+          }));
+        }
+      }
+    };
+
+    const handlePluginUI = (e: any) => {
+      setPluginLogs(prev => [...prev, e.detail]);
+    };
+
+    window.addEventListener('battleStatusChange', handleStatusChange);
+    window.addEventListener('plugin:ui:display', handlePluginUI);
+    return () => {
+      window.removeEventListener('battleStatusChange', handleStatusChange);
+      window.removeEventListener('plugin:ui:display', handlePluginUI);
+    };
+  }, []);
 
   const handleSelectChar = (id: string) => {
     setSelectedIds(prev => 
@@ -632,6 +666,34 @@ export default function Home() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Plugin System Integration */}
+      <PluginManager battleResult={battleLog ? { log_text: battleLog } : undefined} />
+
+      {/* Battle Results & Plugin Logs */}
+      {(battleLog || pluginLogs.length > 0) && (
+        <div className={styles.battleControls} style={{ marginTop: '2rem', background: 'rgba(0,0,0,0.3)' }}>
+          <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Battle Results</h2>
+          
+          {battleLog && (
+            <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem', marginBottom: '2rem' }}>
+              {battleLog}
+            </div>
+          )}
+
+          {pluginLogs.map((log, i) => (
+            <div key={i} style={{ 
+              marginTop: '1.5rem', 
+              padding: '1.5rem', 
+              background: 'rgba(37, 99, 235, 0.1)', 
+              borderLeft: '4px solid #2563eb',
+              borderRadius: '8px'
+            }}>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{log.message}</div>
+            </div>
+          ))}
         </div>
       )}
     </div>
