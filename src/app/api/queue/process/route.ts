@@ -72,25 +72,6 @@ export async function POST(req: NextRequest) {
               systemInstruction: queueItem.system_prompt || undefined,
               maxOutputTokens: 8192,
               responseMimeType: queueItem.json_mode ? 'application/json' : 'text/plain',
-              responseSchema: queueItem.json_mode ? {
-                type: "object",
-                properties: {
-                  winner: { type: "string" },
-                  log: { type: "string" },
-                  rounds: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        round: { type: "number" },
-                        action: { type: "string" },
-                        message: { type: "string" }
-                      }
-                    }
-                  }
-                },
-                required: ["winner", "log"]
-              } : undefined
             }
           });
 
