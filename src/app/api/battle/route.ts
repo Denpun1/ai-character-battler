@@ -56,25 +56,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const finalPrompt = `
-[SYSTEM INSTRUCTION]
-${systemPrompt}
-
-[PARTICIPANTS]
-${playerInfo}
-
-[COMMAND]
-上記のキャラクターによる対戦シミュレーションを実行し、その結果のみを以下のJSON形式で出力してください。入力データ（PARTICIPANTSの内容）をそのまま出力に含めないでください。
-
-{
-  "winner": "勝者の名前",
-  "log": "対戦の全体ログ（テキスト）",
-  "rounds": [
-    { "round": 1, "action": "行動内容", "message": "描写" }
-  ]
-}
-`.trim();
-
+      const finalPrompt = `${systemPrompt}\n\n${playerInfo}`;
       const responseStream = await ai.models.generateContentStream({
         model: selectedModel,
         contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
