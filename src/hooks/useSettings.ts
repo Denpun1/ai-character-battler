@@ -12,7 +12,6 @@ export interface Settings {
   thinkingBudget: number;
   thinkingLevel: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
   provider: 'google' | 'lightning';
-  jsonMode: boolean;
 }
 
 export interface SettingPreset extends Settings {
@@ -28,7 +27,6 @@ const DEFAULT_SETTINGS: Settings = {
   thinkingBudget: 0,
   thinkingLevel: 'HIGH',
   provider: 'google',
-  jsonMode: false,
 };
 
 export function useSettings() {
@@ -95,7 +93,6 @@ export function useSettings() {
         thinkingBudget: data.thinking_budget ?? DEFAULT_SETTINGS.thinkingBudget,
         thinkingLevel: data.thinking_level || DEFAULT_SETTINGS.thinkingLevel,
         provider: data.provider || DEFAULT_SETTINGS.provider,
-        jsonMode: data.json_mode ?? DEFAULT_SETTINGS.jsonMode,
       });
     } else {
       // If no cloud data, use local storage as potential migration source
@@ -136,7 +133,6 @@ export function useSettings() {
           thinking_budget: newSettings.thinkingBudget,
           thinking_level: newSettings.thinkingLevel,
           provider: newSettings.provider,
-          json_mode: newSettings.jsonMode,
           created_at: Date.now()
         });
 

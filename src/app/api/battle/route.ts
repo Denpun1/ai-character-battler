@@ -12,8 +12,7 @@ export async function POST(req: NextRequest) {
       showThinking, 
       thinkingBudget, 
       thinkingLevel, 
-      provider,
-      jsonMode
+      provider
     } = await req.json();
 
     // Support both players array and legacy p1/p2
@@ -63,7 +62,7 @@ export async function POST(req: NextRequest) {
         config: {
           ...config,
           maxOutputTokens: 8192,
-          responseMimeType: jsonMode ? 'application/json' : 'text/plain',
+          responseMimeType: 'text/plain',
         }
       });
 
@@ -119,7 +118,6 @@ export async function POST(req: NextRequest) {
             { role: 'user', content: userPrompt }
           ],
           temperature: temperature,
-          response_format: jsonMode ? { type: "json_object" } : undefined,
           stream: true
         })
       });

@@ -60,7 +60,6 @@ export default function Home() {
   const [pluginButtons, setPluginButtons] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'entry' | 'result'>('entry');
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
-  const [jsonMode, setJsonMode] = useState(false);
 
   useBattleRealtime();
 
@@ -200,13 +199,12 @@ export default function Home() {
     setTemperature(settings.temperature);
     setThinkingLevel(settings.thinkingLevel || 'HIGH');
     setProvider(settings.provider || 'google');
-    setJsonMode(settings.jsonMode || false);
     setIsSettingsOpen(true);
   };
 
   const saveSettingsForm = (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider, jsonMode });
+    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
     setIsSettingsOpen(false);
   };
 
@@ -220,13 +218,12 @@ export default function Home() {
       setThinkingBudget(p.thinkingBudget);
       setThinkingLevel(p.thinkingLevel);
       setProvider(p.provider);
-      setJsonMode(p.jsonMode);
     }
   };
 
   const handleSaveNewPreset = () => {
     if (!newPresetName.trim()) return;
-    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider, jsonMode });
+    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
     setNewPresetName('');
   };
 
@@ -240,7 +237,6 @@ export default function Home() {
         model: model,
         temperature: temperature,
         provider: provider,
-        json_mode: jsonMode,
         status: 'pending',
         created_at: Date.now()
       }).select('id').single();
@@ -474,16 +470,6 @@ export default function Home() {
                   style={{ minHeight: '120px' }}
                   required
                 />
-              </div>
-              <div className={styles.formGroup}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={jsonMode} 
-                    onChange={e => setJsonMode(e.target.checked)} 
-                  />
-                  AI出力をJSON形式にする (JSON Mode)
-                </label>
               </div>
               <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
               
