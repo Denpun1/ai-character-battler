@@ -63,7 +63,9 @@ export async function runPluginFlow(
           const model = node.data.model === 'custom' ? node.data.customModel : node.data.model;
           
           // Merge user's global system instructions with the node's specific prompt
-          const combinedSystemPrompt = `${context.systemPrompt || ""}\n\n[Plugin Instruction]\n${nodePrompt}`;
+          const combinedSystemPrompt = context.systemPrompt 
+            ? `${context.systemPrompt}\n\n${nodePrompt}`
+            : nodePrompt;
 
           try {
             const aiResponse = await fetch("/api/battle", {

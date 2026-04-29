@@ -38,26 +38,9 @@ export async function POST(req: NextRequest) {
       }
 
       const ai = new GoogleGenAI({ apiKey });
-      const playerCount = finalPlayers.length;
-      let participantInstruction = playerCount > 2 
-        ? `今回は以下の ${playerCount} 名によるバトルロイヤル（乱戦）です。全員が何らかの形で関与し、最後に生き残った一人の名前を「勝者: [名前]」の形式で出力してください。` 
-        : `今回は 2 名による 1vs1 のバトルです。最後に「勝者: [名前]」で終わること。`;
-
-      let basePrompt = systemPrompt || (isEpilogue ? '後日譚を作成してください。' : 'キャラクターたちが熱いバトルを行い、最後に「勝者: [キャラクター名]」で終わること。');
       
-      if (!isEpilogue) {
-        basePrompt = `${participantInstruction}\n\n${basePrompt}`;
-      }
+      const finalSystemPrompt = systemPrompt || '';
       
-      // Thinking specific prompt logic
-      if (showThinking) {
-        if (selectedModel.toLowerCase().includes('gemma')) {
-          basePrompt = '<|think|>\n' + basePrompt;
-        } else {
-          basePrompt = '思考プロセス：出力を行う前に、詳細な思考プロセスを必ず <think> と </think> のタグで囲んで一番最初に出力してください。\n\n' + basePrompt;
-        }
-      }
-
       let playerInfo = '';
       finalPlayers.forEach((p: any, idx: number) => {
         const itemStr = p.itemDetails ? `装備アイテム: ${p.itemDetails.name}\n（効果: ${p.itemDetails.description}）` : '';
@@ -66,9 +49,14 @@ export async function POST(req: NextRequest) {
 
       let prompt = '';
       if (isEpilogue) {
-        prompt = `${basePrompt}\n\n【これまでのバトルの流れ】\n${context}\n\n【登場キャラクター設定】\n${playerInfo}`;
+        prompt = `${finalSystemPrompt}\n\n【これまでのバトルの流れ】\n${context}\n\n【登場キャラクター設定】\n${playerInfo}`;
       } else {
-        prompt = `${basePrompt}\n\n${playerInfo}`;
+        prompt = `${finalSystemPrompt}\n\n【登場キャラクター設定】\n${playerInfo}`;
+      }
+
+      // Add thinking prefix only for models that need it as part of text
+      if (showThinking && selectedModel.toLowerCase().includes('gemma')) {
+        prompt = '<|think|>\n' + prompt;
       }
 
       const config: any = {
@@ -114,7 +102,7 @@ export async function POST(req: NextRequest) {
       if (!lightningKey) {
         return new Response(JSON.stringify({ error: "Lightning API Key is missing." }), { status: 500 });
       }
-      let basePrompt = systemPrompt || 'バトルの結果を出力してください。';
+      let basePrompt = systemPrompt || '';
 
       if (showThinking && selectedModel.toLowerCase().includes('gemma')) {
         basePrompt = '<|think|>\n' + basePrompt;
