@@ -1,13 +1,10 @@
 
 import { supabase } from "@/lib/supabase";
-import { Node, Edge } from "@xyflow/react";
-
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export interface PluginContext {
   userId: string;
   queueId?: string;
-  battleResult?: any; // The result of the main AI battle
+  battleResult?: any;
   variables: Record<string, any>;
 }
 
@@ -20,9 +17,7 @@ export async function runPluginFlow(
 ) {
   console.log(`[Plugin Interpreter] Running flow for trigger: ${triggerType}${startNodeId ? ' starting from ' + startNodeId : ''}`);
   
-  const nodeDataResults: Record<string, any> = {};
-
-  const variables = { ...context.variables };
+  const variables: Record<string, any> = { ...context.variables };
 
   const resolveData = (nodeId: string, handleId: string, fallback: any) => {
     const edge = edges.find(e => e.target === nodeId && e.targetHandle === `in-${handleId}`);
@@ -42,7 +37,7 @@ export async function runPluginFlow(
     return;
   }
 
-  // Basic BFS/DFS traversal
+  // Use a queue for traversal
   let queue = [...currentNodes];
   let visited = new Set();
 
@@ -53,6 +48,8 @@ export async function runPluginFlow(
 
     console.log(`[Interpreter] Processing node: ${node.type} (${node.id})`);
 
+    let nextHandle = "trigger-out";
+
     // Execute node logic
     switch (node.type) {
       case "start":
@@ -62,21 +59,23 @@ export async function runPluginFlow(
       case "ai":
         {
           const prompt = resolveData(node.id, "prompt", node.data.prompt);
-          
-          // Call internal API for follow-up
           const model = node.data.model === 'custom' ? node.data.customModel : node.data.model;
           
-          const aiResponse = await fetch("/api/battle", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt: `${prompt}\n\n[Battle Context]\n${JSON.stringify(context.battleResult)}`,
-              model: model || "gemini-1.5-flash",
-            }),
-          }).then(r => r.json());
+          try {
+            const aiResponse = await fetch("/api/battle", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt: `${prompt}\n\n[Battle Context]\n${JSON.stringify(context.battleResult)}`,
+                model: model || "gemini-1.5-flash",
+              }),
+            }).then(r => r.json());
 
-          const text = aiResponse.result || "AI Response failed";
-          nodeDataResults[node.id] = { text };
+            const text = aiResponse.result || "AI Response failed";
+            variables[`${node.id}_trigger-out`] = text; // Store result for output
+          } catch (e) {
+            console.error("AI Node Execution Error:", e);
+          }
         }
         break;
 
@@ -85,14 +84,13 @@ export async function runPluginFlow(
           const label = node.data.label || "Next";
           const slot = node.data.slot || "actions";
           
-          // Dispatch button display event
           window.dispatchEvent(new CustomEvent('plugin:ui:button', {
             detail: { label, slot, nodeId: node.id }
           }));
           
-          // STOP execution and wait for click
-          console.log(`[Interpreter] Paused at button: ${node.id}`);
-          return; 
+          // Stop this branch and wait for click
+          console.log(`[Interpreter] Flow paused at button: ${node.id}`);
+          continue; 
         }
 
       case "log":
@@ -108,11 +106,13 @@ export async function runPluginFlow(
         break;
     }
 
+    // Find next nodes based on the output handle
     const nextEdges = edges.filter(e => e.source === node.id && e.sourceHandle === nextHandle);
-    if (nextEdges.length > 0) {
-      await Promise.all(nextEdges.map(e => executeNode(e.target)));
+    for (const edge of nextEdges) {
+      const nextNode = nodes.find(n => n.id === edge.target);
+      if (nextNode) {
+        queue.push(nextNode);
+      }
     }
-  };
-
-  await executeNode(startNode.id);
+  }
 }
