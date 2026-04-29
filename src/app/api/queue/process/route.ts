@@ -37,10 +37,15 @@ export async function POST(req: NextRequest) {
     if (queueItem.status === 'completed') return NextResponse.json({ message: "Already finished." });
     
     // 2. MARK AS PROCESSING (With timestamp for watchdog)
-    await supabase.from('battle_queue').update({ 
+    const { error: updateError } = await supabase.from('battle_queue').update({ 
       status: 'processing', 
       started_at: new Date().toISOString() 
     }).eq('id', queueId);
+
+    if (updateError) {
+      console.error("DB_UPDATE_ERROR:", updateError);
+      throw new Error(`Failed to update status to processing: ${updateError.message}. Make sure 'started_at' column exists.`);
+    }
 
     // 3. FETCH CONTEXT (Characters, Items)
     const [charsRes, itemsRes] = await Promise.all([
