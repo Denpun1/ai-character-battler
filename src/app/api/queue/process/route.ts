@@ -120,8 +120,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function buildPrompt(queueItem: any, fighters: any[]) {
-  let p = `${queueItem.system_prompt}\n\n`;
+function buildPrompt(fighters: any[]) {
+  let p = "";
   fighters.forEach((f, i) => {
     p += `Fighter ${i+1}: ${f.name}\nSkills: ${f.skills}\nItem: ${f.itemDetails?.name || 'None'}\n\n`;
   });
@@ -137,8 +137,11 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
     headers: { 'Authorization': `Bearer ${lightningKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: queueItem.model || 'gemma-4-31b-it',
-      messages: [{ role: 'system', content: queueItem.system_prompt }, { role: 'user', content: buildPrompt(queueItem, fighters) }],
-      stream: false // Non-stream for simplicity in rebuilt core
+      messages: [
+        { role: 'system', content: queueItem.system_prompt }, 
+        { role: 'user', content: buildPrompt(fighters) }
+      ],
+      stream: false
     })
   });
   if (!res.ok) throw new Error("Lightning AI request failed.");
