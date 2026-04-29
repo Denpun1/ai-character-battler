@@ -58,21 +58,33 @@ export default function Home() {
   const [battleLog, setBattleLog] = useState<string | null>(null);
   const [pluginLogs, setPluginLogs] = useState<any[]>([]);
   const [pluginButtons, setPluginButtons] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'entry' | 'result'>('entry');
+  const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
+  const [jsonMode, setJsonMode] = useState(false);
 
   useBattleRealtime();
 
   useEffect(() => {
     const handleStatusChange = async (e: any) => {
       const data = e.detail;
+      
+      // Notify status change
+      setNotification({ message: data.message, type: data.status === 'failed' ? 'error' : 'info' });
+      
       if (data.status === 'completed' && data.resultId) {
         const { data: result } = await supabase.from('battle_history').select('*').eq('id', data.resultId).single();
         if (result) {
           setBattleLog(result.log_text);
+          setNotification({ message: '対戦が完了しました！', type: 'success' });
+          setActiveTab('result'); // Auto-switch to result tab
           window.dispatchEvent(new CustomEvent('plugin:run', { 
             detail: { triggerType: 'end', contextOverride: { battleResult: result } } 
           }));
         }
       }
+      
+      // Auto-clear notification after 5s
+      setTimeout(() => setNotification(null), 5000);
     };
 
     const handlePluginUI = (e: any) => {
@@ -186,16 +198,15 @@ export default function Home() {
     setSystemPrompt(settings.systemPrompt);
     setModel(settings.model);
     setTemperature(settings.temperature);
-    setShowThinking(settings.showThinking || false);
-    setThinkingBudget(settings.thinkingBudget || 0);
     setThinkingLevel(settings.thinkingLevel || 'HIGH');
     setProvider(settings.provider || 'google');
+    setJsonMode(settings.jsonMode || false);
     setIsSettingsOpen(true);
   };
 
   const saveSettingsForm = (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider, jsonMode });
     setIsSettingsOpen(false);
   };
 
@@ -209,6 +220,7 @@ export default function Home() {
       setThinkingBudget(p.thinkingBudget);
       setThinkingLevel(p.thinkingLevel);
       setProvider(p.provider);
+      setJsonMode(p.jsonMode);
     }
   };
 
@@ -228,6 +240,7 @@ export default function Home() {
         model: model,
         temperature: temperature,
         provider: provider,
+        json_mode: jsonMode,
         status: 'pending',
         created_at: Date.now()
       }).select('id').single();
@@ -250,15 +263,55 @@ export default function Home() {
         battleResult={battleLog ? { log_text: battleLog } : undefined} 
         systemPrompt={settings.systemPrompt}
       />
-      
       <header className={styles.header}>
         <h1 className={styles.title}>Welcome to the Arena</h1>
         <div>
           <Button variant="secondary" onClick={openSettings}>Settings (Presets)</Button>
         </div>
       </header>
+      
+      {/* Notification Toast */}
+      {notification && (
+        <div style={{
+          position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+          padding: '1rem 2rem', borderRadius: '12px', zIndex: 11000,
+          background: notification.type === 'error' ? '#dc2626' : notification.type === 'success' ? '#16a34a' : '#2563eb',
+          color: 'white', fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          animation: 'slideDown 0.3s ease-out'
+        }}>
+          {notification.message}
+        </div>
+      )}
 
-      {/* Characters Section */}
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+        <button 
+          onClick={() => setActiveTab('entry')}
+          style={{ 
+            padding: '0.5rem 1.5rem', background: 'transparent', border: 'none', 
+            color: activeTab === 'entry' ? '#2563eb' : 'var(--foreground)',
+            borderBottom: activeTab === 'entry' ? '2px solid #2563eb' : 'none',
+            cursor: 'pointer', fontSize: '1.1rem', fontWeight: activeTab === 'entry' ? 'bold' : 'normal'
+          }}
+        >
+          Entry
+        </button>
+        <button 
+          onClick={() => setActiveTab('result')}
+          style={{ 
+            padding: '0.5rem 1.5rem', background: 'transparent', border: 'none', 
+            color: activeTab === 'result' ? '#2563eb' : 'var(--foreground)',
+            borderBottom: activeTab === 'result' ? '2px solid #2563eb' : 'none',
+            cursor: 'pointer', fontSize: '1.1rem', fontWeight: activeTab === 'result' ? 'bold' : 'normal'
+          }}
+        >
+          Result
+        </button>
+      </div>
+
+      {activeTab === 'entry' && (
+        <>
+          {/* Characters Section */}
       <div className={styles.rosterSection} style={{ marginBottom: '3rem' }}>
         <div className={styles.rosterHeader}>
           <h2>Characters</h2>
@@ -426,10 +479,10 @@ export default function Home() {
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input 
                     type="checkbox" 
-                    checked={showThinking} 
-                    onChange={e => setShowThinking(e.target.checked)} 
+                    checked={jsonMode} 
+                    onChange={e => setJsonMode(e.target.checked)} 
                   />
-                  AIの思考プロセスを表示する
+                  AI出力をJSON形式にする (JSON Mode)
                 </label>
               </div>
               <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
@@ -452,7 +505,7 @@ export default function Home() {
 
               <div className={styles.modalActions}>
                 <Button variant="secondary" type="button" onClick={() => {
-                  setSystemPrompt('以下のキャラクターたちが熱いバトルを行います。設定に基づいて、臨場感のある劇的なバトルの展開と、最終的に誰が勝つかを決定し、シナリオを出力してください。文章は小説のようなトーンで作成してください。出力要件: 1. バトル開始の状況 2. スキル・アイテムを駆使した攻防 3. クライマックス 4. 明確な勝者の宣言（最後に「勝者: [キャラクター名]」という形式で終わること）');
+                  setSystemPrompt('');
                 }}>Reset Prompts to Default</Button>
                 <div style={{ flexGrow: 1 }} />
                 <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
@@ -462,100 +515,114 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {/* Results & Plugin UI Slots */}
-      {(battleLog || pluginLogs.length > 0 || pluginButtons.length > 0) && (
-        <div className={styles.battleControls} style={{ 
-          marginTop: '2rem', 
-          display: 'block', 
-          background: 'rgba(0,0,0,0.4)', 
-          position: 'relative',
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-        }}>
-          
-          {/* Slot-based Action Bar */}
-          {pluginButtons.filter(b => b.posMode !== 'absolute').length > 0 && (
-            <div style={{ 
-              display: 'flex', 
-              gap: '1rem', 
-              marginBottom: '1.5rem', 
-              padding: '1.2rem', 
-              background: 'rgba(37, 99, 235, 0.2)', 
-              borderRadius: '12px',
-              border: '1px solid #2563eb',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              animation: 'slideUp 0.3s ease-out'
+        </>
+      ) : (
+        <div style={{ minHeight: '400px' }}>
+          {/* Results & Plugin UI Slots */}
+          {(battleLog || pluginLogs.length > 0 || pluginButtons.length > 0) ? (
+            <div className={styles.battleControls} style={{ 
+              marginTop: '0', 
+              display: 'block', 
+              background: 'rgba(0,0,0,0.4)', 
+              position: 'relative',
+              border: '1px solid rgba(255,255,255,0.1)',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
             }}>
-              {pluginButtons.filter(b => b.posMode !== 'absolute').map((btn, i) => (
-                <Button key={i} onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ minWidth: '150px' }}>
-                  {btn.label}
-                </Button>
-              ))}
-            </div>
-          )}
+              
+              {/* Slot-based Action Bar */}
+              {pluginButtons.filter(b => b.posMode !== 'absolute').length > 0 && (
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  marginBottom: '1.5rem', 
+                  padding: '1.2rem', 
+                  background: 'rgba(37, 99, 235, 0.2)', 
+                  borderRadius: '12px',
+                  border: '1px solid #2563eb',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center',
+                  animation: 'slideUp 0.3s ease-out'
+                }}>
+                  {pluginButtons.filter(b => b.posMode !== 'absolute').map((btn, i) => (
+                    <Button key={i} onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ minWidth: '150px' }}>
+                      {btn.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
 
-          {/* Absolute-positioned Components (The "Pixel" Editor Result) */}
-          {pluginButtons.filter(b => b.posMode === 'absolute').map((btn, i) => (
-            <div key={`abs-btn-${i}`} style={{ 
-              position: 'fixed', left: btn.posX, top: btn.posY, zIndex: 9999,
-              width: btn.width ? `${btn.width}px` : 'auto',
-              height: btn.height ? `${btn.height}px` : 'auto'
-            }}>
-              <Button 
-                onClick={() => handlePluginButtonClick(btn.nodeId)} 
-                style={{ width: '100%', height: '100%' }}
-              >
-                {btn.label}
-              </Button>
-            </div>
-          ))}
-
-          {pluginLogs.filter(log => log.posMode === 'absolute').map((log, i) => (
-            <div key={`abs-log-${i}`} style={{ 
-              position: 'fixed', left: log.posX, top: log.posY, zIndex: 9999,
-              width: log.width ? `${log.width}px` : '300px',
-              height: log.height ? `${log.height}px` : 'auto',
-              pointerEvents: 'none'
-            }}>
-              <div style={log.mode === 'box' ? { 
-                padding: '1rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px',
-                width: '100%', height: '100%', overflow: 'auto'
-              } : { textShadow: '2px 2px 4px rgba(0,0,0,0.8)', width: '100%', height: '100%' }}>
-                {log.message}
-              </div>
-            </div>
-          ))}
-
-          <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#2563eb' }}>
-            Battle Concluded
-          </h2>
-          
-          <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
-            {battleLog && <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>{battleLog}</div>}
-            
-            {pluginLogs.filter(log => log.slot === 'epilogue' && log.posMode !== 'absolute').map((log, i) => (
-              <div key={i} style={log.mode === 'box' ? { 
-                padding: '1.5rem', background: 'rgba(255, 255, 255, 0.05)', borderLeft: '4px solid #2563eb', borderRadius: '8px' 
-              } : { whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
-                {log.message}
-              </div>
-            ))}
-          </div>
-
-          {/* Sidebar Slot */}
-          {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').length > 0 && (
-            <div style={{ 
-              position: 'fixed', top: '100px', right: '2rem', width: '250px', 
-              display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100 
-            }}>
-              {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').map((log, i) => (
-                <div key={i} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px', fontSize: '0.85rem' }}>
-                  {log.message}
+              {/* Absolute-positioned Components (The "Pixel" Editor Result) */}
+              {pluginButtons.filter(b => b.posMode === 'absolute').map((btn, i) => (
+                <div key={`abs-btn-${i}`} style={{ 
+                  position: 'fixed', left: btn.posX, top: btn.posY, zIndex: 9999,
+                  width: btn.width ? `${btn.width}px` : 'auto',
+                  height: btn.height ? `${btn.height}px` : 'auto'
+                }}>
+                  <Button 
+                    onClick={() => handlePluginButtonClick(btn.nodeId)} 
+                    style={{ width: '100%', height: '100%' }}
+                  >
+                    {btn.label}
+                  </Button>
                 </div>
               ))}
+
+              {pluginLogs.filter(log => log.posMode === 'absolute').map((log, i) => (
+                <div key={`abs-log-${i}`} style={{ 
+                  position: 'fixed', left: log.posX, top: log.posY, zIndex: 9999,
+                  width: log.width ? `${log.width}px` : '300px',
+                  height: log.height ? `${log.height}px` : 'auto',
+                  pointerEvents: 'none'
+                }}>
+                  <div style={log.mode === 'box' ? { 
+                    padding: '1rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px',
+                    width: '100%', height: '100%', overflow: 'auto'
+                  } : { textShadow: '2px 2px 4px rgba(0,0,0,0.8)', width: '100%', height: '100%' }}>
+                    {log.message}
+                  </div>
+                </div>
+              ))}
+
+              <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#2563eb' }}>
+                Battle Result
+              </h2>
+              
+              <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
+                {battleLog && (
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
+                    {battleLog.startsWith('{') ? (
+                      <pre style={{ background: '#111', padding: '1rem', borderRadius: '8px', overflow: 'auto', fontSize: '0.9rem' }}>
+                        {JSON.stringify(JSON.parse(battleLog), null, 2)}
+                      </pre>
+                    ) : battleLog}
+                  </div>
+                )}
+                
+                {pluginLogs.filter(log => log.slot === 'battle' && log.posMode !== 'absolute').map((log, i) => (
+                  <div key={i} style={log.mode === 'box' ? { 
+                    padding: '1.5rem', background: 'rgba(255, 255, 255, 0.05)', borderLeft: '4px solid #2563eb', borderRadius: '8px' 
+                  } : { whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
+                    {log.message}
+                  </div>
+                ))}
+              </div>
+
+              {/* Sidebar Slot */}
+              {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').length > 0 && (
+                <div style={{ 
+                  position: 'fixed', top: '100px', right: '2rem', width: '250px', 
+                  display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100 
+                }}>
+                  {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').map((log, i) => (
+                    <div key={i} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px', fontSize: '0.85rem' }}>
+                      {log.message}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          ) : (
+            <div className={styles.emptyState}>No results to display. Start a battle in the Entry tab.</div>
           )}
         </div>
       )}

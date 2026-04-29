@@ -13,14 +13,13 @@ export async function POST(req: NextRequest) {
       thinkingBudget, 
       thinkingLevel, 
       provider,
-      isEpilogue,
-      context
+      jsonMode
     } = await req.json();
 
     // Support both players array and legacy p1/p2
     const finalPlayers = players || (p1 && p2 ? [p1, p2] : []);
 
-    if (finalPlayers.length === 0 && !isEpilogue) {
+    if (finalPlayers.length === 0) {
       return new Response(JSON.stringify({ error: "Missing characters data" }), { status: 400 });
     }
 
@@ -39,25 +38,11 @@ export async function POST(req: NextRequest) {
 
       const ai = new GoogleGenAI({ apiKey });
       
-      const finalSystemPrompt = systemPrompt || '';
-      
       let playerInfo = '';
       finalPlayers.forEach((p: any, idx: number) => {
-        const itemStr = p.itemDetails ? `装備アイテム: ${p.itemDetails.name}\n（効果: ${p.itemDetails.description}）` : '';
-        playerInfo += `【キャラクター${idx + 1}】\n名前: ${p.name}\n設定/特徴: ${p.skills}\n${itemStr}\n\n`;
+        const itemStr = p.itemDetails ? `\n装備: ${p.itemDetails.name} (${p.itemDetails.description})` : '';
+        playerInfo += `\n${p.name}: ${p.skills}${itemStr}\n`;
       });
-
-      let prompt = '';
-      if (isEpilogue) {
-        prompt = `${finalSystemPrompt}\n\n【これまでのバトルの流れ】\n${context}\n\n【登場キャラクター設定】\n${playerInfo}`;
-      } else {
-        prompt = `${finalSystemPrompt}\n\n【登場キャラクター設定】\n${playerInfo}`;
-      }
-
-      // Add thinking prefix only for models that need it as part of text
-      if (showThinking && selectedModel.toLowerCase().includes('gemma')) {
-        prompt = '<|think|>\n' + prompt;
-      }
 
       const config: any = {
         temperature: typeof temperature === 'number' ? temperature : 0.7,
@@ -73,8 +58,12 @@ export async function POST(req: NextRequest) {
 
       const responseStream = await ai.models.generateContentStream({
         model: selectedModel,
-        contents: prompt,
-        config: config
+        contents: [{ role: 'user', parts: [{ text: playerInfo }] }],
+        config: {
+          ...config,
+          systemInstruction: systemPrompt || undefined,
+          responseMimeType: jsonMode ? 'application/json' : 'text/plain',
+        }
       });
 
       const stream = new ReadableStream({
@@ -109,17 +98,12 @@ export async function POST(req: NextRequest) {
       }
 
       let playerInfo = '';
-      finalPlayers.forEach((p: any, idx: number) => {
-        const itemStr = p.itemDetails ? `装備アイテム: ${p.itemDetails.name}\n（効果: ${p.itemDetails.description}）` : '';
-        playerInfo += `【キャラクター${idx + 1}】\n名前: ${p.name}\n設定/特徴: ${p.skills}\n${itemStr}\n\n`;
+      finalPlayers.forEach((p: any) => {
+        const itemStr = p.itemDetails ? `\n装備: ${p.itemDetails.name} (${p.itemDetails.description})` : '';
+        playerInfo += `\n${p.name}: ${p.skills}${itemStr}\n`;
       });
 
-      let userPrompt = '';
-      if (isEpilogue) {
-        userPrompt = `【これまでのバトルの流れ】\n${context}\n\n【登場キャラクター設定】\n${playerInfo}`;
-      } else {
-        userPrompt = playerInfo;
-      }
+      let userPrompt = playerInfo;
 
       const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
         method: 'POST',
@@ -134,6 +118,7 @@ export async function POST(req: NextRequest) {
             { role: 'user', content: userPrompt }
           ],
           temperature: temperature,
+          response_format: jsonMode ? { type: "json_object" } : undefined,
           stream: true
         })
       });

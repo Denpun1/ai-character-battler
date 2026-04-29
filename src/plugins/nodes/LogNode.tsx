@@ -66,10 +66,10 @@ function LogNode({ id, data, selected }: { id: string; data: any; selected: bool
           <div className={styles.field}>
             <label>Display Slot</label>
             <select 
-              value={data.slot || 'epilogue'} 
+              value={data.slot || 'battle'} 
               onChange={(e) => updateNodeData(id, { slot: e.target.value })}
             >
-              <option value="epilogue">After Battle (Epilogue)</option>
+              <option value="battle">Battle Log</option>
               <option value="sidebar">Sidebar (Log)</option>
             </select>
           </div>

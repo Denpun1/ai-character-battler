@@ -74,7 +74,6 @@ export async function runPluginFlow(
               body: JSON.stringify({
                 systemPrompt: combinedSystemPrompt,
                 model: model || "gemini-1.5-flash",
-                isEpilogue: true, // Use epilogue mode for better formatting
                 context: JSON.stringify(context.battleResult)
               }),
             }).then(r => r.json());

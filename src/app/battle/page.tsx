@@ -20,9 +20,7 @@ function BattleArena() {
 
   const [fighters, setFighters] = useState<any[]>([]);
   const [battleLog, setBattleLog] = useState<string>('');
-  const [epilogueLog, setEpilogueLog] = useState<string>('');
   const [isFighting, setIsFighting] = useState(false);
-  const [isEpiloguing, setIsEpiloguing] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
 
@@ -35,8 +33,6 @@ function BattleArena() {
     if (saved) {
       try {
         const data = JSON.parse(saved);
-        setBattleLog(data.battleLog || '');
-        setEpilogueLog(data.epilogueLog || '');
         setWinner(data.winner || null);
         setIsFinished(data.isFinished || false);
       } catch (e) {
@@ -45,7 +41,6 @@ function BattleArena() {
     } else {
       // Clear if no saved state for this specific player combo
       setBattleLog('');
-      setEpilogueLog('');
       setWinner(null);
       setIsFinished(false);
     }
@@ -53,12 +48,12 @@ function BattleArena() {
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
-    if (battleLog || epilogueLog || isFinished) {
+    if (battleLog || isFinished) {
       localStorage.setItem(storageKey, JSON.stringify({
-        battleLog, epilogueLog, winner, isFinished
+        battleLog, winner, isFinished
       }));
     }
-  }, [storageKey, battleLog, epilogueLog, winner, isFinished]);
+  }, [storageKey, battleLog, winner, isFinished]);
 
   useEffect(() => {
     if (isLoaded && settingsLoaded && itemsLoaded) {
@@ -109,7 +104,6 @@ function BattleArena() {
     if (fighters.length < 2) return;
     setIsFighting(true);
     setBattleLog('');
-    setEpilogueLog('');
     setIsFinished(false);
     setWinner(null);
     localStorage.removeItem(storageKey);
@@ -239,48 +233,6 @@ function BattleArena() {
     }
   };
 
-  const startEpilogue = async () => {
-    if (!battleLog || isFighting || isEpiloguing) return;
-    setIsEpiloguing(true);
-    setEpilogueLog('');
-
-    try {
-      const res = await fetch('/api/battle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          players: fighters.map(f => ({ ...f, itemDetails: items.find(i => i.id === f.itemId) })),
-          model: settings.model,
-          temperature: settings.temperature,
-          showThinking: settings.showThinking,
-          thinkingBudget: settings.thinkingBudget,
-          thinkingLevel: settings.thinkingLevel,
-          provider: settings.provider,
-          isEpilogue: true,
-          context: battleLog
-        })
-      });
-
-      if (!res.ok) throw new Error('Failed to generate epilogue');
-
-      const reader = res.body?.getReader();
-      if (!reader) return;
-      const decoder = new TextDecoder();
-      let streamText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        streamText += decoder.decode(value, { stream: true });
-        setEpilogueLog(streamText);
-      }
-    } catch (error: any) {
-      setEpilogueLog(`Error: ${error.message}`);
-    } finally {
-      setIsEpiloguing(false);
-    }
-  };
-
   const renderLog = (logText: string, label?: string) => {
     const findTags = (text: string) => {
       const standardStart = text.indexOf('<think>');
@@ -355,7 +307,6 @@ function BattleArena() {
         {isFinished && (
           <>
             <Button variant="secondary" onClick={startFight}>Rematch</Button>
-            {!epilogueLog && !isEpiloguing && <Button onClick={startEpilogue}>Generate Epilogue</Button>}
           </>
         )}
       </div>
@@ -367,14 +318,6 @@ function BattleArena() {
           {isFinished && winner && (
             <div className={styles.winnerDeclaration}> Winner: {winner} </div>
           )}
-
-          {epilogueLog && (
-            <div className={styles.epilogueArea}>
-              <h2 className={styles.epilogueTitle}>❧ Epilogue (後日譚)</h2>
-              {renderLog(epilogueLog, '(Epilogue)')}
-            </div>
-          )}
-          {isEpiloguing && !epilogueLog && <div className={styles.loadingState}>Writing epilogue...</div>}
         </div>
       )}
     </div>

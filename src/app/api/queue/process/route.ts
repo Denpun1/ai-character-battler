@@ -67,7 +67,10 @@ export async function POST(req: NextRequest) {
           const stream = await genAI.models.generateContentStream({
             model: modelName,
             contents: [{ role: 'user', parts: [{ text: buildPrompt(queueItem, fighters) }] }],
-            config: { temperature: queueItem.temperature || 0.7 }
+            config: { 
+              temperature: queueItem.temperature || 0.7,
+              systemInstruction: queueItem.system_prompt || undefined
+            }
           });
 
           for await (const chunk of stream) {
@@ -121,9 +124,9 @@ export async function POST(req: NextRequest) {
 }
 
 function buildPrompt(queueItem: any, fighters: any[]) {
-  let p = `${queueItem.system_prompt}\n\n`;
+  let p = "";
   fighters.forEach((f, i) => {
-    p += `Fighter ${i+1}: ${f.name}\nSkills: ${f.skills}\nItem: ${f.itemDetails?.name || 'None'}\n\n`;
+    p += `【キャラクター${i + 1}】\n名前: ${f.name}\n特徴/スキル: ${f.skills}\n装備アイテム: ${f.itemDetails?.name || 'なし'}\n\n`;
   });
   return p;
 }
@@ -138,9 +141,10 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
     body: JSON.stringify({
       model: queueItem.model || 'gemma-4-31b-it',
       messages: [
-        { role: 'system', content: queueItem.system_prompt }, 
+        { role: 'system', content: queueItem.system_prompt || '' }, 
         { role: 'user', content: buildPrompt(queueItem, fighters) }
       ],
+      temperature: queueItem.temperature || 0.7,
       stream: false
     })
   });

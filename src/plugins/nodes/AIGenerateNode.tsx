@@ -22,7 +22,7 @@ function AIGenerateNode({ id, data, selected }: { id: string; data: any; selecte
           className={`${styles.input} nodrag`} 
           value={data.prompt || ""} 
           onChange={(e) => updateNodeData(id, { prompt: e.target.value })} 
-          placeholder="エピローグを作成して..."
+          placeholder="AIへの追加指示を入力..."
           style={{ height: '60px', resize: 'none' }}
         />
         

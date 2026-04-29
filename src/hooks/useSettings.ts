@@ -12,6 +12,7 @@ export interface Settings {
   thinkingBudget: number;
   thinkingLevel: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
   provider: 'google' | 'lightning';
+  jsonMode: boolean;
 }
 
 export interface SettingPreset extends Settings {
@@ -20,13 +21,14 @@ export interface SettingPreset extends Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  systemPrompt: '以下のキャラクターたちが熱いバトルを行います。設定に基づいて、臨場感のある劇的なバトルの展開と、最終的に誰が勝つかを決定し、シナリオを出力してください。文章は小説のようなトーンで作成してください。出力要件: 1. バトル開始の状況 2. スキル・アイテムを駆使した攻防 3. クライマックス 4. 明確な勝者の宣言（最後に「勝者: [キャラクター名]」という形式で終わること）',
+  systemPrompt: '',
   model: 'gemma-4-31b-it',
   temperature: 0.7,
   showThinking: false,
   thinkingBudget: 0,
   thinkingLevel: 'HIGH',
   provider: 'google',
+  jsonMode: false,
 };
 
 export function useSettings() {
@@ -92,6 +94,7 @@ export function useSettings() {
         thinkingBudget: data.thinking_budget ?? DEFAULT_SETTINGS.thinkingBudget,
         thinkingLevel: data.thinking_level || DEFAULT_SETTINGS.thinkingLevel,
         provider: data.provider || DEFAULT_SETTINGS.provider,
+        jsonMode: data.json_mode ?? DEFAULT_SETTINGS.jsonMode,
       });
     } else {
       // If no cloud data, use local storage as potential migration source
@@ -132,6 +135,7 @@ export function useSettings() {
           thinking_budget: newSettings.thinkingBudget,
           thinking_level: newSettings.thinkingLevel,
           provider: newSettings.provider,
+          json_mode: newSettings.jsonMode,
           created_at: Date.now()
         });
 

@@ -12,6 +12,8 @@ interface LayoutItem {
   message?: string;
   posX: number;
   posY: number;
+  width: number;
+  height: number;
 }
 
 export default function LayoutDesigner({ 
