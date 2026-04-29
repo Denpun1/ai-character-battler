@@ -30,7 +30,7 @@ export async function runPluginFlow(
   // Find start node(s)
   let currentNodes = startNodeId 
     ? nodes.filter(n => n.id === startNodeId)
-    : nodes.filter(n => n.type === 'start' && n.data.trigger === triggerType);
+    : nodes.filter(n => n.type === 'start' && n.data.triggerType === triggerType);
 
   if (currentNodes.length === 0) {
     console.log(`[Plugin Interpreter] No nodes found for trigger/id: ${triggerType}/${startNodeId}`);

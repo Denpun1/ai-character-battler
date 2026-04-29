@@ -52,7 +52,6 @@ export default function Home() {
   const [thinkingBudget, setThinkingBudget] = useState(0);
   const [thinkingLevel, setThinkingLevel] = useState<'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH'>('HIGH');
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
-  const [epiloguePrompt, setEpiloguePrompt] = useState('');
   const [newPresetName, setNewPresetName] = useState('');
 
   // Plugin System States
@@ -228,7 +227,6 @@ export default function Home() {
         user_id: user.id,
         participant_ids: selectedIds,
         system_prompt: systemPrompt,
-        epilogue_prompt: epiloguePrompt,
         model: model,
         temperature: temperature,
         provider: provider,
@@ -253,7 +251,6 @@ export default function Home() {
       <PluginManager 
         battleResult={battleLog ? { log_text: battleLog } : undefined} 
         systemPrompt={settings.systemPrompt}
-        epiloguePrompt={settings.epiloguePrompt}
       />
       
       <header className={styles.header}>
@@ -417,38 +414,100 @@ export default function Home() {
               <div className={styles.formGroup}><label>API Provider</label><select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}><option value="google">Google AI</option><option value="lightning">Lightning AI</option></select></div>
               <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
               <div className={styles.formGroup}><label>Temperature</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
-              <div className={styles.formGroup}><label>Battle Prompt</label><textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} required /></div>
-              <div className={styles.formGroup}><label>Epilogue Prompt</label><textarea value={epiloguePrompt} onChange={e => setEpiloguePrompt(e.target.value)} className={styles.textarea} required /></div>
-              <div className={styles.modalActions}><Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button><Button type="submit">Apply</Button></div>
+              <div className={styles.formGroup}>
+                <label>Instruction: Battle (バトル用指示)</label>
+                <textarea 
+                  value={systemPrompt} 
+                  onChange={e => setSystemPrompt(e.target.value)} 
+                  className={styles.textarea}
+                  style={{ minHeight: '120px' }}
+                  required
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={showThinking} 
+                    onChange={e => setShowThinking(e.target.checked)} 
+                  />
+                  AIの思考プロセスを表示する
+                </label>
+              </div>
+              <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
+              
+              <div className={styles.formGroup}>
+                <label>💾 Save current settings as New Instruction</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input 
+                    type="text" 
+                    value={newPresetName} 
+                    onChange={e => setNewPresetName(e.target.value)} 
+                    className={styles.input}
+                    placeholder="Instruction name (e.g. Comical Battle)"
+                  />
+                  <Button type="button" variant="secondary" onClick={handleSaveNewPreset} disabled={!newPresetName.trim()}>
+                    Save New
+                  </Button>
+                </div>
+              </div>
+
+              <div className={styles.modalActions}>
+                <Button variant="secondary" type="button" onClick={() => {
+                  setSystemPrompt('以下のキャラクターたちが熱いバトルを行います。設定に基づいて、臨場感のある劇的なバトルの展開と、最終的に誰が勝つかを決定し、シナリオを出力してください。文章は小説のようなトーンで作成してください。出力要件: 1. バトル開始の状況 2. スキル・アイテムを駆使した攻防 3. クライマックス 4. 明確な勝者の宣言（最後に「勝者: [キャラクター名]」という形式で終わること）');
+                }}>Reset Prompts to Default</Button>
+                <div style={{ flexGrow: 1 }} />
+                <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
+                <Button type="submit">Apply Settings</Button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Results & Plugin Logs Slots */}
+      {/* Results & Plugin UI Slots */}
       {(battleLog || pluginLogs.length > 0 || pluginButtons.length > 0) && (
-        <div className={styles.battleControls} style={{ marginTop: '2rem', display: 'block', background: 'rgba(0,0,0,0.3)', position: 'relative' }}>
+        <div className={styles.battleControls} style={{ 
+          marginTop: '2rem', 
+          display: 'block', 
+          background: 'rgba(0,0,0,0.4)', 
+          position: 'relative',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+        }}>
           
-          {/* Action Bar (Buttons) */}
-          {pluginButtons.filter(b => b.slot === 'actions').length > 0 && (
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
-              {pluginButtons.filter(b => b.slot === 'actions').map((btn, i) => (
-                <Button key={i} onClick={() => handlePluginButtonClick(btn.nodeId)}>
+          {/* Action Bar (Fixed at top of results or bottom of screen) */}
+          {pluginButtons.length > 0 && (
+            <div style={{ 
+              display: 'flex', 
+              gap: '1rem', 
+              marginBottom: '1.5rem', 
+              padding: '1.2rem', 
+              background: 'rgba(37, 99, 235, 0.2)', 
+              borderRadius: '12px',
+              border: '1px solid #2563eb',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              animation: 'slideUp 0.3s ease-out'
+            }}>
+              {pluginButtons.map((btn, i) => (
+                <Button key={i} onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ minWidth: '150px' }}>
                   {btn.label}
                 </Button>
               ))}
             </div>
           )}
 
-          <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Battle Results</h2>
+          <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#2563eb' }}>
+            Battle Concluded
+          </h2>
           
-          {/* Main Content (Epilogue Slot) */}
           <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
             {battleLog && <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>{battleLog}</div>}
             
             {pluginLogs.filter(log => log.slot === 'epilogue').map((log, i) => (
               <div key={i} style={log.mode === 'box' ? { 
-                padding: '1.5rem', background: 'rgba(37, 99, 235, 0.1)', borderLeft: '4px solid #2563eb', borderRadius: '8px' 
+                padding: '1.5rem', background: 'rgba(255, 255, 255, 0.05)', borderLeft: '4px solid #2563eb', borderRadius: '8px' 
               } : { whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
                 {log.message}
               </div>

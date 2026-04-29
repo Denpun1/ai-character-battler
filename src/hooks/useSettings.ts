@@ -6,7 +6,6 @@ const STORAGE_KEY = 'ai_character_battler_settings';
 
 export interface Settings {
   systemPrompt: string;
-  epiloguePrompt: string;
   model: string;
   temperature: number;
   showThinking: boolean;
@@ -22,7 +21,6 @@ export interface SettingPreset extends Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   systemPrompt: '以下のキャラクターたちが熱いバトルを行います。設定に基づいて、臨場感のある劇的なバトルの展開と、最終的に誰が勝つかを決定し、シナリオを出力してください。文章は小説のようなトーンで作成してください。出力要件: 1. バトル開始の状況 2. スキル・アイテムを駆使した攻防 3. クライマックス 4. 明確な勝者の宣言（最後に「勝者: [キャラクター名]」という形式で終わること）',
-  epiloguePrompt: '以下のバトルの結果を受けて、その後の後日譚（エピローグ）を短編小説風に作成してください。敗者のその後や、勝者の葛藤、周囲の反応なども含めて情緒的に描いてください。',
   model: 'gemma-4-31b-it',
   temperature: 0.7,
   showThinking: false,
