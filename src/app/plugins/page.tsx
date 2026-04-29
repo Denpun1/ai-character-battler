@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase';
 import { useUser } from '@clerk/nextjs';
 import styles from '../page.module.css'; // Reuse existing styles for consistency
 import { Plus, Edit2, Play, Trash2, Box } from 'lucide-react';
+import { Button } from '@/components/Button';
+import { useRouter } from 'next/navigation';
 
 interface BattleMod {
   id: string;
@@ -17,24 +19,35 @@ interface BattleMod {
 }
 
 export default function PluginsPage() {
+  const router = useRouter();
   const { user, isLoaded } = useUser();
   const [mods, setMods] = useState<BattleMod[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('[Plugins] Auth state:', { isLoaded, userId: user?.id });
     if (isLoaded && user) {
       fetchMods();
     }
   }, [isLoaded, user]);
 
   const fetchMods = async () => {
-    const { data, error } = await supabase
-      .from('battle_mods')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (data) setMods(data);
-    setIsLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('battle_mods')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Fetch mods error:', error);
+      } else if (data) {
+        setMods(data);
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching mods:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const toggleMod = async (id: string, currentStatus: boolean) => {
@@ -58,23 +71,38 @@ export default function PluginsPage() {
   };
 
   const createNewMod = async () => {
-    if (!user) return;
-    const name = prompt('プラグイン名を入力してください', 'New Plugin');
-    if (!name) return;
+    console.log('[Plugins] Create button clicked');
+    if (!user) {
+      alert('ログイン情報が読み込まれていません。再試行してください。');
+      return;
+    }
+    
+    const name = `Plugin ${mods.length + 1}`;
+    console.log('[Plugins] Creating mod with name:', name);
 
-    const { data, error } = await supabase.from('battle_mods').insert({
-      user_id: user.id,
-      name,
-      description: 'A custom battle mod.',
-      flow_data: { nodes: [], edges: [] },
-      is_active: false,
-      created_at: Date.now()
-    }).select().single();
+    try {
+      const { data, error } = await supabase.from('battle_mods').insert({
+        user_id: user.id,
+        name,
+        description: 'A custom battle mod.',
+        flow_data: { nodes: [], edges: [] },
+        is_active: false
+      }).select().single();
 
-    if (data) {
-      window.location.href = `/plugins/editor?id=${data.id}`;
+      if (error) {
+        alert('プラグインの作成に失敗しました: ' + error.message);
+        console.error('Create error:', error);
+      } else if (data) {
+        console.log('[Plugins] Created successfully, redirecting to editor with id:', data.id);
+        router.push(`/plugins/editor?id=${data.id}`);
+      }
+    } catch (err) {
+      console.error('[Plugins] Unexpected exception:', err);
+      alert('予期せぬエラーが発生しました');
     }
   };
+
+  if (!isLoaded) return <div style={{ color: 'white', padding: '2rem' }}>Loading authentication...</div>;
 
   return (
     <main className={styles.main}>
@@ -84,9 +112,9 @@ export default function PluginsPage() {
             <h1 className={styles.title} style={{ margin: 0 }}>Plugins <span style={{ fontSize: '1rem', opacity: 0.6 }}>(Mod System)</span></h1>
             <p style={{ opacity: 0.7, marginTop: '0.5rem' }}>対戦のルールやUIを自由にカスタマイズするプラグインを管理します。</p>
           </div>
-          <button onClick={createNewMod} className={styles.battleButton} style={{ width: 'auto', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Button type="button" onClick={createNewMod} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Plus size={20} /> 新規作成
-          </button>
+          </Button>
         </header>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
