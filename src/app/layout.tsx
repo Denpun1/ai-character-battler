@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
+import { NotificationContainer } from "@/components/NotificationContainer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,9 +19,6 @@ export const metadata: Metadata = {
   title: "AI Character Battler",
   description: "Create unique characters and let them fight powered by Google Gemini AI.",
 };
-
-import NavBar from "@/components/NavBar";
-import { NotificationContainer } from "@/components/NotificationContainer";
 
 export default function RootLayout({
   children,
