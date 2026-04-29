@@ -120,8 +120,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function buildPrompt(fighters: any[]) {
-  let p = "";
+function buildPrompt(queueItem: any, fighters: any[]) {
+  let p = `${queueItem.system_prompt}\n\n`;
   fighters.forEach((f, i) => {
     p += `Fighter ${i+1}: ${f.name}\nSkills: ${f.skills}\nItem: ${f.itemDetails?.name || 'None'}\n\n`;
   });
@@ -139,7 +139,7 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
       model: queueItem.model || 'gemma-4-31b-it',
       messages: [
         { role: 'system', content: queueItem.system_prompt }, 
-        { role: 'user', content: buildPrompt(fighters) }
+        { role: 'user', content: buildPrompt(queueItem, fighters) }
       ],
       stream: false
     })
