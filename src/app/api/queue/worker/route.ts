@@ -5,7 +5,6 @@ import { GoogleGenAI } from "@google/genai";
 
 export const runtime = 'edge';
 
-// Use service role key if available for server-side processing
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -36,7 +35,6 @@ export async function POST(req: NextRequest) {
     await supabase.from('battle_queue').update({ status: 'processing', created_at: Date.now() }).eq('id', queueId);
 
     // 3. Prepare characters and items
-    // Since we are server-side, we need to fetch character/item details
     const { data: chars } = await supabase.from('characters').select('*').in('id', queueItem.participant_ids || [queueItem.p1_id, queueItem.p2_id]);
     const { data: items } = await supabase.from('items').select('*');
 
@@ -49,55 +47,82 @@ export async function POST(req: NextRequest) {
       return { ...c, itemDetails: items?.find(i => i.id === itemId) };
     });
 
-    // 4. Run AI (Gemini) with Streaming
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("Critical Configuration Error: GEMINI_API_KEY is not defined in the server environment.");
-    }
-    
-    const ai = new GoogleGenAI({ apiKey });
-    
-    // Build prompt
+    // 4. Common Prompt Preparation
     let prompt = `${queueItem.system_prompt}\n\n`;
     fighters.forEach((f, idx) => {
       prompt += `【Fighter ${idx+1}】\nName: ${f.name}\nSkills: ${f.skills}\nItem: ${f.itemDetails?.name || 'None'}\n\n`;
     });
 
-    const selectedModel = queueItem.model || "gemma-4-31b-it";
-
-    const responseStream = await ai.models.generateContentStream({
-      model: selectedModel,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        temperature: typeof queueItem.temperature === 'number' ? queueItem.temperature : 0.7,
-      }
-    });
-
     let fullText = '';
     const startTime = Date.now();
-    try {
+    const provider = queueItem.provider || 'google';
+
+    if (provider === 'google') {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error("Critical Configuration Error: GEMINI_API_KEY is not defined.");
+      
+      const ai = new GoogleGenAI({ apiKey });
+      const selectedModel = queueItem.model || "gemma-4-31b-it";
+      
+      const responseStream = await ai.models.generateContentStream({
+        model: selectedModel,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: { temperature: queueItem.temperature || 0.7 }
+      });
+
       for await (const chunk of responseStream) {
-        if (chunk.text) {
-          fullText += chunk.text;
-        }
-        // Safety cutoff at 55 seconds
-        if (Date.now() - startTime > 55000) {
-          console.log("Edge safety cutoff reached (55s). Finalizing partial result.");
-          break;
+        if (chunk.text) fullText += chunk.text;
+        if (Date.now() - startTime > 55000) break;
+      }
+    } else {
+      // Lightning AI implementation
+      const lightningKey = process.env.LIGHTNING_API_KEY;
+      if (!lightningKey) throw new Error("Critical Configuration Error: LIGHTNING_API_KEY is not defined.");
+
+      const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${lightningKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: queueItem.model || "gemma-4-31b-it",
+          messages: [{ role: 'system', content: queueItem.system_prompt }, { role: 'user', content: prompt }],
+          temperature: queueItem.temperature || 0.7,
+          stream: true
+        })
+      });
+
+      if (!res.ok) throw new Error(`Lightning AI Error: ${await res.text()}`);
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const cleaned = line.replace(/^data: /, '').trim();
+            if (cleaned === '[DONE]' || !cleaned) continue;
+            try {
+              const json = JSON.parse(cleaned);
+              const content = json.choices[0]?.delta?.content;
+              if (content) fullText += content;
+            } catch (e) {}
+          }
+          if (Date.now() - startTime > 55000) break;
         }
       }
-    } catch (e: any) {
-      console.error("Streaming error:", e);
-      // Even if streaming fails halfway, we might have enough text
-      if (fullText.length < 50) throw e;
     }
 
-    // 5. Parse Winner
+    // 5. Finalize Result
     let winnerName = null;
     const match = fullText.match(/勝者[:：]\s*(.+)/);
     if (match && match[1]) winnerName = match[1].trim();
 
-    // 6. Save to History
     const { data: histData, error: histError } = await supabase.from('battle_history').insert({
       user_id: queueItem.user_id,
       p1_id: fighters[0].id,
@@ -112,7 +137,6 @@ export async function POST(req: NextRequest) {
 
     if (histError) throw histError;
 
-    // 7. Finalize Queue
     await supabase.from('battle_queue').update({ 
       status: 'completed', 
       result_id: histData.id,
@@ -123,7 +147,9 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("Server Worker Error:", error);
-    await supabase.from('battle_queue').update({ status: 'failed', error_msg: error.message }).eq('id', queueId);
+    if (queueId) {
+      await supabase.from('battle_queue').update({ status: 'failed', error_msg: error.message }).eq('id', queueId);
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
