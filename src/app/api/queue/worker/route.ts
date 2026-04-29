@@ -61,8 +61,11 @@ export async function POST(req: NextRequest) {
       prompt += `【Fighter ${idx+1}】\nName: ${f.name}\nSkills: ${f.skills}\nItem: ${f.itemDetails?.name || 'None'}\n\n`;
     });
 
+    let selectedModel = queueItem.model || "gemini-1.5-flash";
+    if (selectedModel.includes('2.5')) selectedModel = 'gemini-1.5-flash';
+
     const responseStream = await ai.models.generateContentStream({
-      model: queueItem.model || "gemini-1.5-flash",
+      model: selectedModel,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         temperature: typeof queueItem.temperature === 'number' ? queueItem.temperature : 0.7,
