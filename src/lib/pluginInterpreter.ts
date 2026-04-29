@@ -88,16 +88,12 @@ export async function runPluginFlow(
         {
           const label = node.data.label || "Next";
           const slot = node.data.slot || "actions";
+          const posMode = node.data.posMode || 'slot';
+          const posX = node.data.posX || 0;
+          const posY = node.data.posY || 0;
           
           window.dispatchEvent(new CustomEvent('plugin:ui:button', {
-            detail: { 
-              label, 
-              slot, 
-              nodeId: node.id,
-              uiX: node.data.uiX,
-              uiY: node.data.uiY,
-              uiW: node.data.uiW
-            }
+            detail: { label, slot, posMode, posX, posY, nodeId: node.id }
           }));
           
           // Stop this branch and wait for click
@@ -110,17 +106,12 @@ export async function runPluginFlow(
           const message = resolveData(node.id, "message", node.data.message);
           const mode = node.data.mode || "box";
           const slot = node.data.slot || "epilogue";
+          const posMode = node.data.posMode || 'slot';
+          const posX = node.data.posX || 0;
+          const posY = node.data.posY || 0;
           
           window.dispatchEvent(new CustomEvent('plugin:ui:display', {
-            detail: { 
-              message, 
-              mode, 
-              slot, 
-              id: node.id,
-              uiX: node.data.uiX,
-              uiY: node.data.uiY,
-              uiW: node.data.uiW
-            }
+            detail: { message, mode, slot, posMode, posX, posY, id: node.id }
           }));
         }
         break;

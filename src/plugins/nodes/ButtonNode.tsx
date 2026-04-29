@@ -23,20 +23,39 @@ export default function ButtonNode({ data }: { data: any }) {
             placeholder="e.g. もっと詳しく聞く"
           />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <div className={styles.field}>
-            <label>X (px)</label>
-            <input type="number" value={data.uiX || 0} onChange={(e) => data.onChange?.({ ...data, uiX: parseInt(e.target.value) })} />
-          </div>
-          <div className={styles.field}>
-            <label>Y (px)</label>
-            <input type="number" value={data.uiY || 0} onChange={(e) => data.onChange?.({ ...data, uiY: parseInt(e.target.value) })} />
-          </div>
-        </div>
         <div className={styles.field}>
-          <label>Width (px)</label>
-          <input type="number" value={data.uiW || 150} onChange={(e) => data.onChange?.({ ...data, uiW: parseInt(e.target.value) })} />
+          <label>Position Mode</label>
+          <select 
+            value={data.posMode || 'slot'} 
+            onChange={(e) => data.onChange?.({ ...data, posMode: e.target.value })}
+          >
+            <option value="slot">Slot-based</option>
+            <option value="absolute">Absolute (Pixels)</option>
+          </select>
         </div>
+        {data.posMode === 'absolute' ? (
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className={styles.field}>
+              <label>X (px)</label>
+              <input type="number" value={data.posX || 0} onChange={(e) => data.onChange?.({ ...data, posX: parseInt(e.target.value) })} style={{ width: '60px' }} />
+            </div>
+            <div className={styles.field}>
+              <label>Y (px)</label>
+              <input type="number" value={data.posY || 0} onChange={(e) => data.onChange?.({ ...data, posY: parseInt(e.target.value) })} style={{ width: '60px' }} />
+            </div>
+          </div>
+        ) : (
+          <div className={styles.field}>
+            <label>Display Slot</label>
+            <select 
+              value={data.slot || 'actions'} 
+              onChange={(e) => data.onChange?.({ ...data, slot: e.target.value })}
+            >
+              <option value="actions">Action Bar (Bottom)</option>
+              <option value="sidebar">Sidebar</option>
+            </select>
+          </div>
+        )}
         <small style={{ opacity: 0.5 }}>ボタンが押されると次へ進みます</small>
       </div>
       <Handle type="target" position={Position.Top} />

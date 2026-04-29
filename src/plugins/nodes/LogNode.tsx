@@ -29,20 +29,39 @@ function LogNode({ id, data, selected }: { id: string; data: any; selected: bool
             <option value="plain">Plain Text (Clean)</option>
           </select>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <div className={styles.field}>
-            <label>X (px)</label>
-            <input type="number" value={data.uiX || 0} onChange={(e) => updateNodeData(id, { uiX: parseInt(e.target.value) })} />
-          </div>
-          <div className={styles.field}>
-            <label>Y (px)</label>
-            <input type="number" value={data.uiY || 0} onChange={(e) => updateNodeData(id, { uiY: parseInt(e.target.value) })} />
-          </div>
-        </div>
         <div className={styles.field}>
-          <label>Width (px)</label>
-          <input type="number" value={data.uiW || 400} onChange={(e) => updateNodeData(id, { uiW: parseInt(e.target.value) })} />
+          <label>Position Mode</label>
+          <select 
+            value={data.posMode || 'slot'} 
+            onChange={(e) => updateNodeData(id, { posMode: e.target.value })}
+          >
+            <option value="slot">Slot-based</option>
+            <option value="absolute">Absolute (Pixels)</option>
+          </select>
         </div>
+        {data.posMode === 'absolute' ? (
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className={styles.field}>
+              <label>X (px)</label>
+              <input type="number" value={data.posX || 0} onChange={(e) => updateNodeData(id, { posX: parseInt(e.target.value) })} style={{ width: '60px' }} />
+            </div>
+            <div className={styles.field}>
+              <label>Y (px)</label>
+              <input type="number" value={data.posY || 0} onChange={(e) => updateNodeData(id, { posY: parseInt(e.target.value) })} style={{ width: '60px' }} />
+            </div>
+          </div>
+        ) : (
+          <div className={styles.field}>
+            <label>Display Slot</label>
+            <select 
+              value={data.slot || 'epilogue'} 
+              onChange={(e) => updateNodeData(id, { slot: e.target.value })}
+            >
+              <option value="epilogue">After Battle (Epilogue)</option>
+              <option value="sidebar">Sidebar (Log)</option>
+            </select>
+          </div>
+        )}
         <div className={styles.label}>Static Message (Fallback)</div>
         <input type="text" className={`${styles.input} nodrag`} value={data.message || ""} onChange={(e) => updateNodeData(id, { message: e.target.value })} placeholder="Static text..." />
       </div>

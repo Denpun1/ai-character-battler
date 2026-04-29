@@ -473,50 +473,52 @@ export default function Home() {
           background: 'rgba(0,0,0,0.4)', 
           position: 'relative',
           border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-          minHeight: '400px'
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
         }}>
           
-          {/* Absolute Positioned Plugin Elements */}
-          {pluginButtons.map((btn, i) => (
-            btn.uiX !== undefined && btn.uiY !== undefined && (
-              <div key={`abs-btn-${i}`} style={{ position: 'absolute', left: btn.uiX, top: btn.uiY, width: btn.uiW || 'auto', zIndex: 50 }}>
-                <Button onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ width: '100%' }}>
-                  {btn.label}
-                </Button>
-              </div>
-            )
-          ))}
-
-          {pluginLogs.map((log, i) => (
-            log.uiX !== undefined && log.uiY !== undefined && (
-              <div key={`abs-log-${i}`} style={{ 
-                position: 'absolute', left: log.uiX, top: log.uiY, width: log.uiW || 'auto', zIndex: 40,
-                padding: log.mode === 'box' ? '1rem' : '0',
-                background: log.mode === 'box' ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
-                borderLeft: log.mode === 'box' ? '4px solid #2563eb' : 'none',
-                borderRadius: '8px',
-                whiteSpace: 'pre-wrap'
-              }}>
-                {log.message}
-              </div>
-            )
-          ))}
-
-          {/* Slot-based Action Bar (Buttons without coords) */}
-          {pluginButtons.filter(b => b.uiX === undefined && b.slot === 'actions').length > 0 && (
+          {/* Slot-based Action Bar */}
+          {pluginButtons.filter(b => b.posMode !== 'absolute').length > 0 && (
             <div style={{ 
-              display: 'flex', gap: '1rem', marginBottom: '1.5rem', padding: '1.2rem', 
-              background: 'rgba(37, 99, 235, 0.2)', borderRadius: '12px', border: '1px solid #2563eb',
-              flexWrap: 'wrap', justifyContent: 'center'
+              display: 'flex', 
+              gap: '1rem', 
+              marginBottom: '1.5rem', 
+              padding: '1.2rem', 
+              background: 'rgba(37, 99, 235, 0.2)', 
+              borderRadius: '12px',
+              border: '1px solid #2563eb',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              animation: 'slideUp 0.3s ease-out'
             }}>
-              {pluginButtons.filter(b => b.uiX === undefined).map((btn, i) => (
+              {pluginButtons.filter(b => b.posMode !== 'absolute').map((btn, i) => (
                 <Button key={i} onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ minWidth: '150px' }}>
                   {btn.label}
                 </Button>
               ))}
             </div>
           )}
+
+          {/* Absolute-positioned Components (The "Pixel" Editor Result) */}
+          {pluginButtons.filter(b => b.posMode === 'absolute').map((btn, i) => (
+            <div key={`abs-btn-${i}`} style={{ position: 'fixed', left: btn.posX, top: btn.posY, zIndex: 9999 }}>
+              <Button onClick={() => handlePluginButtonClick(btn.nodeId)}>
+                {btn.label}
+              </Button>
+            </div>
+          ))}
+
+          {pluginLogs.filter(log => log.posMode === 'absolute').map((log, i) => (
+            <div key={`abs-log-${i}`} style={{ 
+              position: 'fixed', left: log.posX, top: log.posY, zIndex: 9999,
+              maxWidth: '300px', pointerEvents: 'none'
+            }}>
+              <div style={log.mode === 'box' ? { 
+                padding: '1rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px' 
+              } : { textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
+                {log.message}
+              </div>
+            </div>
+          ))}
 
           <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#2563eb' }}>
             Battle Concluded
@@ -525,8 +527,7 @@ export default function Home() {
           <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
             {battleLog && <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>{battleLog}</div>}
             
-            {/* Slot-based Logs (Logs without coords) */}
-            {pluginLogs.filter(log => log.uiX === undefined && log.slot === 'epilogue').map((log, i) => (
+            {pluginLogs.filter(log => log.slot === 'epilogue' && log.posMode !== 'absolute').map((log, i) => (
               <div key={i} style={log.mode === 'box' ? { 
                 padding: '1.5rem', background: 'rgba(255, 255, 255, 0.05)', borderLeft: '4px solid #2563eb', borderRadius: '8px' 
               } : { whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
@@ -535,13 +536,13 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Sidebar / Supplementary Info Slot */}
-          {pluginLogs.filter(log => log.slot === 'sidebar').length > 0 && (
+          {/* Sidebar Slot */}
+          {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').length > 0 && (
             <div style={{ 
               position: 'fixed', top: '100px', right: '2rem', width: '250px', 
               display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100 
             }}>
-              {pluginLogs.filter(log => log.slot === 'sidebar').map((log, i) => (
+              {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').map((log, i) => (
                 <div key={i} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px', fontSize: '0.85rem' }}>
                   {log.message}
                 </div>

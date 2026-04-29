@@ -18,7 +18,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { supabase } from '@/lib/supabase';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Save, ChevronLeft, Play, Plus } from 'lucide-react';
+import { Save, ChevronLeft, Play, Plus, Move } from 'lucide-react';
 import Link from 'next/link';
 
 // Custom Nodes
@@ -26,8 +26,7 @@ import StartNode from '@/plugins/nodes/StartNode';
 import AIGenerateNode from '@/plugins/nodes/AIGenerateNode';
 import LogNode from '@/plugins/nodes/LogNode';
 import ButtonNode from '@/plugins/nodes/ButtonNode';
-
-import { LayoutEditor } from '@/components/LayoutEditor';
+import LayoutDesigner from '@/components/LayoutDesigner';
 
 const nodeTypes = {
   start: StartNode,
@@ -37,17 +36,22 @@ const nodeTypes = {
 };
 
 function Editor() {
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const id = searchParams.get('id');
-  const { user } = useUser();
-  const { toObject } = useReactFlow();
+  const { setNodes: setFlowNodes, setEdges: setFlowEdges, toObject } = useReactFlow();
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   const [modName, setModName] = useState('Loading...');
   const [isSaving, setIsSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<'flow' | 'layout'>('flow');
+  const [isLayoutOpen, setIsLayoutOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClose = () => setIsLayoutOpen(false);
+    window.addEventListener('layout-designer:close', handleClose);
+    return () => window.removeEventListener('layout-designer:close', handleClose);
+  }, []);
 
   useEffect(() => {
     if (id) fetchMod();
@@ -105,8 +109,23 @@ function Editor() {
     setNodes((nds) => nds.concat(newNode));
   };
 
+  const handleUpdateNodeFromDesigner = (nodeId: string, newData: any) => {
+    setNodes(nds => nds.map(node => {
+      if (node.id === nodeId) {
+        return { ...node, data: { ...node.data, ...newData } };
+      }
+      return node;
+    }));
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#020617', display: 'flex', flexDirection: 'column' }}>
+      {isLayoutOpen && (
+        <LayoutDesigner 
+          nodes={nodes} 
+          onUpdateNode={handleUpdateNodeFromDesigner} 
+        />
+      )}
       {/* Editor Header */}
       <header style={{ 
         height: '60px', 
@@ -130,62 +149,59 @@ function Editor() {
           <button onClick={() => addNode('log')} className="toolbar-btn"><Plus size={16} /> UI</button>
           <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)', margin: '0 10px' }} />
           <button 
+            onClick={() => setIsLayoutOpen(true)}
+            style={{
+              background: '#0f172a',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.1)',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            <Move size={16} /> Layout
+          </button>
+          <button 
             onClick={saveMod} 
-      <header style={{ padding: '1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="secondary" onClick={() => router.push('/plugins')}>Back</Button>
-          <input 
-            type="text" 
-            value={modName} 
-            onChange={(e) => setModName(e.target.value)}
-            style={{ background: 'transparent', border: 'none', fontSize: '1.2rem', color: 'white', fontWeight: 'bold' }}
-          />
-        </div>
-
-        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px' }}>
-          <Button 
-            variant={viewMode === 'flow' ? 'primary' : 'secondary'} 
-            onClick={() => setViewMode('flow')}
-            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+            disabled={isSaving}
+            style={{
+              background: '#2563eb',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              opacity: isSaving ? 0.5 : 1
+            }}
           >
-            Flow (Logic)
-          </Button>
-          <Button 
-            variant={viewMode === 'layout' ? 'primary' : 'secondary'} 
-            onClick={() => setViewMode('layout')}
-            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-          >
-            Layout (UI)
-          </Button>
+            <Save size={18} /> {isSaving ? 'Saving...' : 'Save Mod'}
+          </button>
         </div>
-
-        <Button onClick={saveMod} disabled={isSaving}>
-          {isSaving ? 'Saving...' : 'Save Plugin'}
-        </Button>
       </header>
 
-      <div style={{ flexGrow: 1, position: 'relative' }}>
-        {viewMode === 'flow' ? (
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            nodeTypes={nodeTypes}
-            fitView
-          >
-            <Background />
-            <Controls />
-          </ReactFlow>
-        ) : (
-          <LayoutEditor 
-            nodes={nodes} 
-            onUpdateNode={(id, data) => {
-              setNodes(nds => nds.map(n => n.id === id ? { ...n, data } : n));
-            }} 
-          />
-        )}
+      {/* React Flow Viewport */}
+      <div style={{ flex: 1, position: 'relative' }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          nodeTypes={nodeTypes}
+          fitView
+          colorMode="dark"
+        >
+          <Background color="#1e293b" gap={20} />
+          <Controls />
+        </ReactFlow>
       </div>
 
       <style jsx>{`
