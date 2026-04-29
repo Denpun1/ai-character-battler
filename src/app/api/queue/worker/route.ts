@@ -11,8 +11,11 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: NextRequest) {
+  let queueId: string | null = null;
   try {
-    const { queueId, userId } = await req.json();
+    const body = await req.json();
+    queueId = body.queueId;
+    const userId = body.userId;
 
     // 1. Fetch the queue item
     const { data: queueItem, error: fetchError } = await supabase
