@@ -61,8 +61,8 @@ export async function POST(req: NextRequest) {
       prompt += `【Fighter ${idx+1}】\nName: ${f.name}\nSkills: ${f.skills}\nItem: ${f.itemDetails?.name || 'None'}\n\n`;
     });
 
-    let selectedModel = queueItem.model || "gemini-1.5-flash";
-    if (selectedModel.includes('2.5')) selectedModel = 'gemini-1.5-flash';
+    let selectedModel = queueItem.model || "gemma-4-31b-it";
+    if (selectedModel.includes('2.5') || selectedModel.includes('1.5')) selectedModel = 'gemma-4-31b-it';
 
     const responseStream = await ai.models.generateContentStream({
       model: selectedModel,

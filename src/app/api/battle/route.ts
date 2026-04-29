@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Missing characters data" }), { status: 400 });
     }
 
-    const selectedModel = model || 'gemini-1.5-flash';
+    const selectedModel = model || 'gemma-4-31b-it';
     const selectedProvider = provider || 'google';
     const isGemma4 = selectedModel.toLowerCase().includes('gemma-4');
     const isGemini3 = selectedModel.toLowerCase().includes('gemini-3');
