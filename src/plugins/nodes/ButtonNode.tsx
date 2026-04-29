@@ -34,16 +34,28 @@ export default function ButtonNode({ data }: { data: any }) {
           </select>
         </div>
         {data.posMode === 'absolute' ? (
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <div className={styles.field}>
-              <label>X (px)</label>
-              <input type="number" value={data.posX || 0} onChange={(e) => data.onChange?.({ ...data, posX: parseInt(e.target.value) })} style={{ width: '60px' }} />
+          <>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div className={styles.field}>
+                <label>X (px)</label>
+                <input type="number" value={data.posX || 0} onChange={(e) => data.onChange?.({ ...data, posX: parseInt(e.target.value) })} style={{ width: '60px' }} />
+              </div>
+              <div className={styles.field}>
+                <label>Y (px)</label>
+                <input type="number" value={data.posY || 0} onChange={(e) => data.onChange?.({ ...data, posY: parseInt(e.target.value) })} style={{ width: '60px' }} />
+              </div>
             </div>
-            <div className={styles.field}>
-              <label>Y (px)</label>
-              <input type="number" value={data.posY || 0} onChange={(e) => data.onChange?.({ ...data, posY: parseInt(e.target.value) })} style={{ width: '60px' }} />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div className={styles.field}>
+                <label>Width (px)</label>
+                <input type="number" value={data.width || 150} onChange={(e) => data.onChange?.({ ...data, width: parseInt(e.target.value) })} style={{ width: '60px' }} />
+              </div>
+              <div className={styles.field}>
+                <label>Height (px)</label>
+                <input type="number" value={data.height || 40} onChange={(e) => data.onChange?.({ ...data, height: parseInt(e.target.value) })} style={{ width: '60px' }} />
+              </div>
             </div>
-          </div>
+          </>
         ) : (
           <div className={styles.field}>
             <label>Display Slot</label>

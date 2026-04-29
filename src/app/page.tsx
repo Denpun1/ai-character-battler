@@ -498,8 +498,15 @@ export default function Home() {
 
           {/* Absolute-positioned Components (The "Pixel" Editor Result) */}
           {pluginButtons.filter(b => b.posMode === 'absolute').map((btn, i) => (
-            <div key={`abs-btn-${i}`} style={{ position: 'fixed', left: btn.posX, top: btn.posY, zIndex: 9999 }}>
-              <Button onClick={() => handlePluginButtonClick(btn.nodeId)}>
+            <div key={`abs-btn-${i}`} style={{ 
+              position: 'fixed', left: btn.posX, top: btn.posY, zIndex: 9999,
+              width: btn.width ? `${btn.width}px` : 'auto',
+              height: btn.height ? `${btn.height}px` : 'auto'
+            }}>
+              <Button 
+                onClick={() => handlePluginButtonClick(btn.nodeId)} 
+                style={{ width: '100%', height: '100%' }}
+              >
                 {btn.label}
               </Button>
             </div>
@@ -508,11 +515,14 @@ export default function Home() {
           {pluginLogs.filter(log => log.posMode === 'absolute').map((log, i) => (
             <div key={`abs-log-${i}`} style={{ 
               position: 'fixed', left: log.posX, top: log.posY, zIndex: 9999,
-              maxWidth: '300px', pointerEvents: 'none'
+              width: log.width ? `${log.width}px` : '300px',
+              height: log.height ? `${log.height}px` : 'auto',
+              pointerEvents: 'none'
             }}>
               <div style={log.mode === 'box' ? { 
-                padding: '1rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px' 
-              } : { textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
+                padding: '1rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px',
+                width: '100%', height: '100%', overflow: 'auto'
+              } : { textShadow: '2px 2px 4px rgba(0,0,0,0.8)', width: '100%', height: '100%' }}>
                 {log.message}
               </div>
             </div>
