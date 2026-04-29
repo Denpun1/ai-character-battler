@@ -29,9 +29,15 @@ export async function runPluginFlow(
   };
 
   // Find start node(s)
-  let currentNodes = startNodeId 
-    ? nodes.filter(n => n.id === startNodeId)
-    : nodes.filter(n => n.type === 'start' && n.data.triggerType === triggerType);
+  let currentNodes: any[] = [];
+  if (triggerType === 'node_click' && startNodeId) {
+    // If it's a click, we start from the CHILDREN of the clicked node
+    const nextEdges = edges.filter(e => e.source === startNodeId && e.sourceHandle === "trigger-out");
+    currentNodes = nextEdges.map(e => nodes.find(n => n.id === e.target)).filter(Boolean);
+    console.log(`[Plugin Interpreter] Resuming flow from node: ${startNodeId}, found ${currentNodes.length} children`);
+  } else {
+    currentNodes = nodes.filter(n => n.type === 'start' && n.data.triggerType === triggerType);
+  }
 
   if (currentNodes.length === 0) {
     console.log(`[Plugin Interpreter] No nodes found for trigger/id: ${triggerType}/${startNodeId}`);
@@ -62,24 +68,31 @@ export async function runPluginFlow(
           const nodePrompt = resolveData(node.id, "prompt", node.data.prompt);
           const model = node.data.model === 'custom' ? node.data.customModel : node.data.model;
           
-          // Merge user's global system instructions with the node's specific prompt
           const combinedSystemPrompt = context.systemPrompt 
             ? `${context.systemPrompt}\n\n${nodePrompt}`
             : nodePrompt;
 
           try {
-            const aiResponse = await fetch("/api/battle", {
+            const response = await fetch("/api/battle", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 systemPrompt: combinedSystemPrompt,
                 model: model || "gemini-1.5-flash",
-                context: JSON.stringify(context.battleResult)
+                playerInfo: "Plugin context: " + JSON.stringify(context.battleResult)
               }),
-            }).then(r => r.json());
+            });
 
-            const text = aiResponse.result || "AI Response failed";
-            variables[`${node.id}_trigger-out`] = text; // Store result for output
+            if (!response.body) throw new Error("No response body");
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let text = "";
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              text += decoder.decode(value);
+            }
+            variables[`${node.id}_trigger-out`] = text;
           } catch (e) {
             console.error("AI Node Execution Error:", e);
           }
