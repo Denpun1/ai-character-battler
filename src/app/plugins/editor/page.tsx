@@ -109,13 +109,25 @@ function Editor() {
     setNodes((nds) => nds.concat(newNode));
   };
 
-  const handleUpdateNodeFromDesigner = (nodeId: string, newData: any) => {
-    setNodes(nds => nds.map(node => {
-      if (node.id === nodeId) {
-        return { ...node, data: { ...node.data, ...newData } };
+  const onNodeDataChange = useCallback((nodeId: string, newData: any) => {
+    setNodes((nds) => nds.map((node) => 
+      node.id === nodeId ? { ...node, data: { ...node.data, ...newData } } : node
+    ));
+  }, []);
+
+  const nodesWithChangeHandler = useMemo(() => 
+    nodes.map(n => ({
+      ...n,
+      data: {
+        ...n.data,
+        onChange: (newData: any) => onNodeDataChange(n.id, newData)
       }
-      return node;
-    }));
+    })),
+    [nodes, onNodeDataChange]
+  );
+
+  const handleUpdateNodeFromDesigner = (nodeId: string, newData: any) => {
+    onNodeDataChange(nodeId, newData);
   };
 
   return (
@@ -192,7 +204,7 @@ function Editor() {
       {/* React Flow Viewport */}
       <div style={{ flex: 1, position: 'relative' }}>
         <ReactFlow
-          nodes={nodes}
+          nodes={nodesWithChangeHandler}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
