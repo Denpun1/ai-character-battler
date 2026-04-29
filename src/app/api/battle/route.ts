@@ -55,24 +55,44 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      const responseSchema = {
+        type: "OBJECT",
+        properties: {
+          winner: { type: "STRING" },
+          log: { type: "STRING" },
+          rounds: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                round: { type: "NUMBER" },
+                action: { type: "STRING" },
+                message: { type: "STRING" }
+              },
+              required: ["round", "action", "message"]
+            }
+          }
+        },
+        required: ["winner", "log"]
+      };
+
       const finalPrompt = `
 ${systemPrompt}
 
 ### 参加者データ
 ${playerInfo}
 
-### 重要ルール
-あなたは純粋な対戦シミュレーターとして振る舞ってください。
-挨拶、導入（「〜についてシミュレーションします」等）、解説、感想、結びの言葉などは一切出力しないでください。
-対戦の描写（本文）のみを直接出力してください。
+上記のキャラクターによる対戦シミュレーションを実行し、その結果をJSONで出力してください。
 `.trim();
+
       const responseStream = await ai.models.generateContentStream({
         model: selectedModel,
         contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
         config: {
           ...config,
           maxOutputTokens: 8192,
-          responseMimeType: 'text/plain',
+          responseMimeType: 'application/json',
+          responseSchema: responseSchema,
         }
       });
 

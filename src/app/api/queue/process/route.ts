@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI } from "@google/genai";
@@ -70,18 +69,36 @@ ${queueItem.system_prompt}
 ### 参加者データ
 ${buildPrompt(queueItem, fighters)}
 
-### 重要ルール
-あなたは純粋な対戦シミュレーターとして振る舞ってください。
-挨拶、導入（「〜についてシミュレーションします」等）、解説、感想、結びの言葉などは一切出力しないでください。
-対戦の描写（本文）のみを直接出力してください。
+上記のキャラクターによる対戦シミュレーションを実行し、その結果をJSONで出力してください。
 `.trim();
+          const responseSchema = {
+            type: "OBJECT",
+            properties: {
+              winner: { type: "STRING" },
+              log: { type: "STRING" },
+              rounds: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    round: { type: "NUMBER" },
+                    action: { type: "STRING" },
+                    message: { type: "STRING" }
+                  },
+                  required: ["round", "action", "message"]
+                }
+              }
+            },
+            required: ["winner", "log"]
+          };
           const stream = await genAI.models.generateContentStream({
             model: modelName,
             contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
             config: { 
               temperature: queueItem.temperature || 0.7,
               maxOutputTokens: 8192,
-              responseMimeType: 'text/plain',
+              responseMimeType: 'application/json',
+              responseSchema: responseSchema,
             }
           });
 
@@ -92,7 +109,13 @@ ${buildPrompt(queueItem, fighters)}
           fullText = await runLightningAI(queueItem, fighters);
         }
 
-        const winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
+        let winnerName = null;
+        try {
+          const parsed = JSON.parse(fullText);
+          winnerName = parsed.winner || null;
+        } catch (e) {
+          winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
+        }
 
         // Persist Result
         const { data: history, error: histError } = await supabase.from('battle_history').insert({
