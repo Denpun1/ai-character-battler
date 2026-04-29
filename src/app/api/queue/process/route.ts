@@ -64,9 +64,28 @@ export async function POST(req: NextRequest) {
           if (!apiKey) throw new Error("GEMINI_API_KEY missing.");
           
           const genAI = new GoogleGenAI({ apiKey });
+          const finalPrompt = `
+[SYSTEM INSTRUCTION]
+${queueItem.system_prompt}
+
+[PARTICIPANTS]
+${buildPrompt(queueItem, fighters)}
+
+[COMMAND]
+上記のキャラクターによる対戦シミュレーションを実行し、その結果のみを以下のJSON形式で出力してください。入力データ（PARTICIPANTSの内容）をそのまま出力に含めないでください。
+
+{
+  "winner": "勝者の名前",
+  "log": "対戦の全体ログ（テキスト）",
+  "rounds": [
+    { "round": 1, "action": "行動内容", "message": "描写" }
+  ]
+}
+`.trim();
+
           const stream = await genAI.models.generateContentStream({
             model: modelName,
-            contents: [{ role: 'user', parts: [{ text: `${queueItem.system_prompt}\n\n${buildPrompt(queueItem, fighters)}` }] }],
+            contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
             config: { 
               temperature: queueItem.temperature || 0.7,
               maxOutputTokens: 8192,
