@@ -40,22 +40,26 @@ export function useBattleRealtime() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase
-      .channel(`battle_queue_user_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'battle_queue',
-          filter: `user_id=eq.${user.id}`
-        },
-        handleUpdate
-      )
-      .subscribe();
+    try {
+      const channel = supabase
+        .channel(`battle_queue_user_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'battle_queue',
+            filter: `user_id=eq.${user.id}`
+          },
+          handleUpdate
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch (err) {
+      console.error('[Realtime] Subscription error:', err);
+    }
   }, [user?.id, handleUpdate]);
 }

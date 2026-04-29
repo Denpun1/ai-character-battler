@@ -17,14 +17,25 @@ export function PluginManager({ battleResult, onEvent }: { battleResult?: any, o
   }, [user]);
 
   const fetchActiveMod = async () => {
-    const { data } = await supabase
-      .from('battle_mods')
-      .select('*')
-      .eq('user_id', user?.id)
-      .eq('is_active', true)
-      .single();
-    
-    if (data) setActiveMod(data);
+    try {
+      const { data, error } = await supabase
+        .from('battle_mods')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('is_active', true)
+        .limit(1);
+      
+      if (error) {
+        console.warn('[PluginManager] Fetch error (table might be missing):', error.message);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setActiveMod(data[0]);
+      }
+    } catch (err) {
+      console.error('[PluginManager] Unexpected error:', err);
+    }
   };
 
   // Listen for external triggers to run flow
