@@ -12,6 +12,8 @@ function AIGenerateNode({ id, data, selected }: { id: string; data: any; selecte
   return (
     <div className={`${styles.node} ${selected ? styles.selected : ""}`}>
       <Handle type="target" position={Position.Left} id="trigger-in" className={`${styles.handle} ${styles.trigger}`} />
+      <Handle type="target" position={Position.Left} id="in-prompt" className={`${styles.handle} ${styles.input_out}`} style={{ top: 'auto', bottom: '15px' }} />
+      <div style={{ position: "absolute", left: "-45px", bottom: "10px", fontSize: "10px", color: "#d97706" }}>Prompt</div>
       
       <div className={`${styles.header} ${styles.action}`}>
         <Bot size={14} /> AI Follow-up

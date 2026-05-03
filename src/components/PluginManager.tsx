@@ -17,34 +17,23 @@ export function PluginManager({
 }) {
   const { user } = useUser();
   const [activeMod, setActiveMod] = useState<any>(null);
+  const [variables, setVariables] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (user) {
-      fetchActiveMod();
+      // 初期ロード
+      const fetchInitial = async () => {
+        const { data } = await supabase
+          .from('battle_mods')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .limit(1);
+        if (data && data.length > 0) setActiveMod(data[0]);
+      };
+      fetchInitial();
     }
   }, [user]);
-
-  const fetchActiveMod = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('battle_mods')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('is_active', true)
-        .limit(1);
-      
-      if (error) {
-        console.warn('[PluginManager] Fetch error (table might be missing):', error.message);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        setActiveMod(data[0]);
-      }
-    } catch (err) {
-      console.error('[PluginManager] Unexpected error:', err);
-    }
-  };
 
   // Listen for external triggers to run flow
   useEffect(() => {
@@ -80,9 +69,10 @@ export function PluginManager({
         userId: user?.id || '',
         battleResult: battleResult || contextOverride?.battleResult,
         systemPrompt: systemPrompt || '',
-        variables: {}
+        variables: variables // 現在の変数を渡す
       };
 
+      // 実行後の変数を取得して永続化する
       await runPluginFlow(
         currentMod.flow_data.nodes, 
         currentMod.flow_data.edges, 
@@ -90,6 +80,10 @@ export function PluginManager({
         context,
         startNodeId
       );
+      
+      // 注意: runPluginFlow内でcontext.variablesを直接変更しているため、
+      // 参照渡しにより自動的に更新されますが、Reactの再レンダリングを促すためにステートも更新
+      setVariables({ ...context.variables });
     };
 
     window.addEventListener('plugin:run', handleRun);
