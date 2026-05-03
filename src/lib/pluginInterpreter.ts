@@ -137,7 +137,7 @@ export async function runPluginFlow(
               detail: { 
                 message, 
                 mode: node.data.mode || "box", 
-                slot: node.data.slot || "epilogue", 
+                slot: node.data.slot || "battle", 
                 posMode: node.data.posMode || 'slot', 
                 posX: node.data.posX || 0, 
                 posY: node.data.posY || 0, 

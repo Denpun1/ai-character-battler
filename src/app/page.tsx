@@ -284,7 +284,9 @@ export default function Home() {
       setNotification({ message: '最低2つのキャラクターをセットしてください', type: 'error' });
       return;
     }
-    
+    // Switch to result tab immediately so user can see pre-battle plugin logs
+    setActiveTab('result');
+
     // Fire 'start' trigger for plugins (so plugins set to run BEFORE battle will execute)
     window.dispatchEvent(new CustomEvent('plugin:run', { 
       detail: { triggerType: 'start' } 
