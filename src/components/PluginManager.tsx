@@ -49,7 +49,31 @@ export function PluginManager({
   // Listen for external triggers to run flow
   useEffect(() => {
     const handleRun = async (e: any) => {
-      if (!activeMod) return;
+      // 常に最新のModデータを取得して実行する（エディタでの更新を即座に反映させるため）
+      let currentMod = activeMod;
+      if (user) {
+        try {
+          const { data } = await supabase
+            .from('battle_mods')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .limit(1);
+          if (data && data.length > 0) {
+            currentMod = data[0];
+            setActiveMod(currentMod); // ローカルステートも更新
+          } else {
+            currentMod = null;
+          }
+        } catch (err) {
+          console.error('[PluginManager] Failed to fetch latest mod', err);
+        }
+      }
+
+      if (!currentMod) {
+        console.log("No active mod found in PluginManager!");
+        return;
+      }
       const { triggerType, contextOverride, startNodeId } = e.detail;
       
       const context: PluginContext = {
@@ -60,8 +84,8 @@ export function PluginManager({
       };
 
       await runPluginFlow(
-        activeMod.flow_data.nodes, 
-        activeMod.flow_data.edges, 
+        currentMod.flow_data.nodes, 
+        currentMod.flow_data.edges, 
         triggerType, 
         context,
         startNodeId
