@@ -40,9 +40,14 @@ export async function POST(req: NextRequest) {
       
       let playerInfo = overridePlayerInfo || '';
       if (!overridePlayerInfo) {
-        finalPlayers.forEach((p: any, idx: number) => {
-          const itemStr = p.itemDetails ? `\n装備アイテム: ${p.itemDetails.name} - ${p.itemDetails.description}` : '';
-          playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemStr}\n`;
+        finalPlayers.forEach((p: any) => {
+          let itemsStr = '';
+          if (p.equippedItems && p.equippedItems.length > 0) {
+            itemsStr = `\n装備アイテム:\n` + p.equippedItems.map((item: any) => `・${item.name} - ${item.description}`).join('\n');
+          } else if (p.itemDetails) {
+            itemsStr = `\n装備アイテム:\n・${p.itemDetails.name} - ${p.itemDetails.description}`;
+          }
+          playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemsStr}\n`;
         });
       }
 
@@ -110,8 +115,13 @@ ${playerInfo}
       let playerInfo = overridePlayerInfo || '';
       if (!overridePlayerInfo) {
         finalPlayers.forEach((p: any) => {
-          const itemStr = p.itemDetails ? `\n装備アイテム: ${p.itemDetails.name} - ${p.itemDetails.description}` : '';
-          playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemStr}\n`;
+          let itemsStr = '';
+          if (p.equippedItems && p.equippedItems.length > 0) {
+            itemsStr = `\n装備アイテム:\n` + p.equippedItems.map((item: any) => `・${item.name} - ${item.description}`).join('\n');
+          } else if (p.itemDetails) {
+            itemsStr = `\n装備アイテム:\n・${p.itemDetails.name} - ${p.itemDetails.description}`;
+          }
+          playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemsStr}\n`;
         });
       }
 

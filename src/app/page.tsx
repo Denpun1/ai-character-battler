@@ -22,8 +22,20 @@ export default function Home() {
   const { items, isLoaded: itemsLoaded, addItem, editItem, deleteItem } = useItems();
   const { settings, presets, isLoaded: settingsLoaded, saveSettings, createPreset, deletePreset } = useSettings();
   const { isSignedIn, isLoaded: isAuthLoaded, user } = useUser();
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [itemOverrides, setItemOverrides] = useState<Record<string, string>>({}); // { charId: itemId }
+  interface EntrySocket {
+    id: string;
+    charId: string | null;
+    itemIds: string[];
+  }
+  const [entrySockets, setEntrySockets] = useState<EntrySocket[]>([
+    { id: 'socket_1', charId: null, itemIds: [] },
+    { id: 'socket_2', charId: null, itemIds: [] }
+  ]);
+  const [activeSocketId, setActiveSocketId] = useState<string | null>(null); // For Character Selection Modal
+  const [activeSocketForItems, setActiveSocketForItems] = useState<string | null>(null); // For Item Selection Modal
+  const [isCharSelectionModalOpen, setIsCharSelectionModalOpen] = useState(false);
+  const [isItemSelectionModalOpen, setIsItemSelectionModalOpen] = useState(false);
+
   
   // Modals state
   const [isCharModalOpen, setIsCharModalOpen] = useState(false);
@@ -105,18 +117,10 @@ export default function Home() {
   }, []);
 
   const handlePluginButtonClick = (nodeId: string) => {
-    // Remove the button once clicked
     setPluginButtons(prev => prev.filter(b => b.nodeId !== nodeId));
-    // Trigger flow resumption
     window.dispatchEvent(new CustomEvent('plugin:run', { 
       detail: { triggerType: 'node_click', startNodeId: nodeId } 
     }));
-  };
-
-  const handleSelectChar = (id: string) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
   };
 
   const openCharModal = async (id?: string) => {
@@ -193,6 +197,46 @@ export default function Home() {
     setIsItemModalOpen(false);
   };
 
+  const addSocket = () => {
+    setEntrySockets(prev => [...prev, { id: `socket_${Date.now()}`, charId: null, itemIds: [] }]);
+  };
+
+  const removeSocket = (socketId: string) => {
+    setEntrySockets(prev => prev.filter(s => s.id !== socketId));
+  };
+
+  const openSocketCharModal = (socketId: string) => {
+    setActiveSocketId(socketId);
+    setIsCharSelectionModalOpen(true);
+  };
+
+  const selectSocketChar = (charId: string) => {
+    if (activeSocketId) {
+      setEntrySockets(prev => prev.map(s => s.id === activeSocketId ? { ...s, charId } : s));
+    }
+    setIsCharSelectionModalOpen(false);
+    setActiveSocketId(null);
+  };
+
+  const openSocketItemModal = (socketId: string) => {
+    setActiveSocketForItems(socketId);
+    setIsItemSelectionModalOpen(true);
+  };
+
+  const toggleSocketItem = (itemId: string) => {
+    if (activeSocketForItems) {
+      setEntrySockets(prev => prev.map(s => {
+        if (s.id === activeSocketForItems) {
+          const newItemIds = s.itemIds.includes(itemId) 
+            ? s.itemIds.filter(id => id !== itemId) 
+            : [...s.itemIds, itemId];
+          return { ...s, itemIds: newItemIds };
+        }
+        return s;
+      }));
+    }
+  };
+
   const openSettings = () => {
     setSystemPrompt(settings.systemPrompt);
     setModel(settings.model);
@@ -228,21 +272,23 @@ export default function Home() {
   };
 
   const startBattle = async () => {
-    if (selectedIds.length < 2 || !user) return;
+    const validSockets = entrySockets.filter(s => s.charId);
+    if (validSockets.length < 2 || !user) {
+      setNotification({ message: '最低2つのキャラクターをセットしてください', type: 'error' });
+      return;
+    }
     try {
-      const p1Id = selectedIds[0];
-      const p2Id = selectedIds[1];
-      
-      const resolvedP1ItemId = itemOverrides[p1Id] === 'none' ? null : (itemOverrides[p1Id] || characters.find(c => c.id === p1Id)?.itemId || null);
-      const resolvedP2ItemId = itemOverrides[p2Id] === 'none' ? null : (itemOverrides[p2Id] || characters.find(c => c.id === p2Id)?.itemId || null);
+      const participantPayload = validSockets.map(s => `${s.charId}::${s.itemIds.join(',')}`);
+
+      // Fallback variables for backward compatibility if needed by old DB schema constraints
+      const p1Id = validSockets[0]?.charId || null;
+      const p2Id = validSockets[1]?.charId || null;
 
       const { data, error } = await supabase.from('battle_queue').insert({
         user_id: user.id,
-        participant_ids: selectedIds, // N-way support
+        participant_ids: participantPayload, // N-way support with items packed
         p1_id: p1Id, // Fallback for 2-way logic
         p2_id: p2Id,
-        p1_item_id: resolvedP1ItemId,
-        p2_item_id: resolvedP2ItemId,
         system_prompt: settings.systemPrompt, // Always use truth from settings
         model: settings.model,
         temperature: settings.temperature,
@@ -317,10 +363,67 @@ export default function Home() {
 
       {activeTab === 'entry' ? (
         <>
-          {/* Characters Section */}
+          {/* Entry Sockets Section */}
+          <div className={styles.rosterSection} style={{ marginBottom: '3rem', padding: '2rem', background: 'rgba(37, 99, 235, 0.05)', borderRadius: '16px', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+            <div className={styles.rosterHeader}>
+              <h2 style={{ color: '#60a5fa' }}>Battle Entry</h2>
+              <Button onClick={addSocket}>+ Add Socket</Button>
+            </div>
+            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'stretch' }}>
+              {entrySockets.map((s, idx) => {
+                const char = s.charId ? characters.find(c => c.id === s.charId) : null;
+                return (
+                  <div key={s.id} className={styles.characterCard} style={{ flex: '1 1 300px', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', border: char ? `2px solid ${char.color}` : '2px dashed rgba(255,255,255,0.1)', padding: '1.5rem', borderRadius: '16px', background: 'rgba(255, 255, 255, 0.03)' }}>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--foreground)', opacity: 0.8 }}>Socket {idx + 1}</div>
+                    {idx >= 2 && <button onClick={() => removeSocket(s.id)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>}
+                    
+                    <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+                      {char ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}><span style={{ color: char.color, marginRight: '8px' }}>●</span>{char.name}</span>
+                          <Button variant="secondary" onClick={() => openSocketCharModal(s.id)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Change</Button>
+                        </div>
+                      ) : (
+                        <Button variant="secondary" onClick={() => openSocketCharModal(s.id)} style={{ width: '100%', padding: '1rem', border: '1px dashed rgba(255,255,255,0.3)' }}>Select Character</Button>
+                      )}
+                    </div>
+
+                    <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', flexGrow: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>Equipped Items</span>
+                        {char && <Button variant="secondary" onClick={() => openSocketItemModal(s.id)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>+ Add Item</Button>}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {s.itemIds.length === 0 ? (
+                          <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No items equipped.</div>
+                        ) : (
+                          s.itemIds.map(itemId => {
+                            const item = items.find(i => i.id === itemId);
+                            return item ? (
+                              <div key={itemId} style={{ fontSize: '0.9rem', padding: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{item.name}</span>
+                                <button onClick={() => toggleSocketItem(itemId)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
+                              </div>
+                            ) : null;
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'center' }}>
+              <Button onClick={startBattle} disabled={entrySockets.filter(s => s.charId).length < 2} style={{ padding: '1rem 3rem', fontSize: '1.2rem', boxShadow: '0 4px 20px rgba(37, 99, 235, 0.4)' }}>
+                Start Battle ({entrySockets.filter(s => s.charId).length} Fighters)
+              </Button>
+            </div>
+          </div>
+
+          {/* Characters Management Section */}
       <div className={styles.rosterSection} style={{ marginBottom: '3rem' }}>
         <div className={styles.rosterHeader}>
-          <h2>Characters</h2>
+          <h2>Character Management</h2>
           <Button onClick={() => openCharModal()}>New Character</Button>
         </div>
         {characters.length === 0 ? (
@@ -330,12 +433,12 @@ export default function Home() {
             {characters.map(char => {
               const equippedItem = char.itemId ? items.find(i => i.id === char.itemId) : null;
               return (
-                <Card key={char.id} className={styles.characterCard} selected={selectedIds.includes(char.id)} onClick={() => handleSelectChar(char.id)}>
+                <Card key={char.id} className={styles.characterCard}>
                   <div className={styles.characterName}>
                     <span style={{ color: char.color, marginRight: '8px' }}>●</span>
                     {char.name}
                   </div>
-                  {equippedItem && <div className={styles.characterItem}>Item: {equippedItem.name}</div>}
+                  {equippedItem && <div className={styles.characterItem}>Permanent Item: {equippedItem.name}</div>}
                   <div className={styles.characterSkills}>
                     {char.skills.length > 80 ? `${char.skills.substring(0, 80)}...` : char.skills}
                   </div>
@@ -344,7 +447,6 @@ export default function Home() {
                     <button className={styles.deleteBtn} onClick={(e) => {
                       e.stopPropagation();
                       deleteCharacter(char.id);
-                      setSelectedIds(prev => prev.filter(id => id !== char.id));
                     }}>Delete</button>
                   </div>
                 </Card>
@@ -354,10 +456,10 @@ export default function Home() {
         )}
       </div>
 
-      {/* Items Section */}
+      {/* Items Management Section */}
       <div className={styles.rosterSection}>
         <div className={styles.rosterHeader}>
-          <h2>Items</h2>
+          <h2>Item Management</h2>
           <Button onClick={() => openItemModal()}>New Item</Button>
         </div>
         {items.length === 0 ? (
@@ -377,45 +479,6 @@ export default function Home() {
           </div>
         )}
       </div>
-
-      {(selectedIds.length > 0) && (
-        <div className={styles.battleControls}>
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>Selected Fighters ({selectedIds.length})</h3>
-          <div className={styles.selectedFighters} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'stretch' }}>
-            {selectedIds.map((id, index) => {
-              const char = characters.find(c => c.id === id);
-              if (!char) return null;
-              return (
-                <div key={id} style={{ 
-                  background: 'rgba(255,255,255,0.05)', 
-                  borderLeft: `4px solid ${char.color}`,
-                  padding: '1rem',
-                  borderRadius: '8px',
-                  minWidth: '220px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem',
-                  position: 'relative'
-                }}>
-                  <button style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#ff5555', cursor: 'pointer' }} onClick={() => handleSelectChar(id)}>✕</button>
-                  <div><strong>P{index + 1}:</strong> {char.name}</div>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    <label>Item: </label>
-                    <select value={itemOverrides[id] || ''} onChange={e => setItemOverrides(prev => ({ ...prev, [id]: e.target.value }))} className={styles.input} style={{ padding: '0.2rem', marginTop: '4px', width: '100%' }}>
-                      <option value="">-- Permanent --</option>
-                      <option value="none">-- Forced None --</option>
-                      {items.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <Button onClick={startBattle} disabled={selectedIds.length < 2}>Start {selectedIds.length}-Way Battle</Button>
-          </div>
-        </div>
-      )}
 
       {/* Modals */}
       {isCharModalOpen && (
@@ -459,6 +522,52 @@ export default function Home() {
               <div className={styles.formGroup}><label>Description</label><textarea value={itemDesc} onChange={e => setItemDesc(e.target.value)} className={styles.textarea} required /></div>
               <div className={styles.modalActions}><Button variant="secondary" type="button" onClick={() => setIsItemModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isCharSelectionModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px' }}>
+            <h2 className={styles.modalTitle}>Select Character for Socket</h2>
+            <div className={styles.grid}>
+              {characters.map(char => (
+                <Card key={char.id} className={styles.characterCard} onClick={() => selectSocketChar(char.id)}>
+                  <div className={styles.characterName}>
+                    <span style={{ color: char.color, marginRight: '8px' }}>●</span>
+                    {char.name}
+                  </div>
+                  <div className={styles.characterSkills}>
+                    {char.skills.length > 80 ? `${char.skills.substring(0, 80)}...` : char.skills}
+                  </div>
+                </Card>
+              ))}
+            </div>
+            <div className={styles.modalActions} style={{ marginTop: '2rem' }}>
+              <Button variant="secondary" onClick={() => setIsCharSelectionModalOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isItemSelectionModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px' }}>
+            <h2 className={styles.modalTitle}>Select Item to Equip</h2>
+            <div className={styles.grid}>
+              {items.map(it => {
+                const isActive = activeSocketForItems ? entrySockets.find(s => s.id === activeSocketForItems)?.itemIds.includes(it.id) : false;
+                return (
+                  <Card key={it.id} className={styles.characterCard} selected={isActive} onClick={() => toggleSocketItem(it.id)}>
+                    <div className={styles.characterName}>{it.name}</div>
+                    <div className={styles.characterSkills}>{it.description}</div>
+                  </Card>
+                );
+              })}
+            </div>
+            <div className={styles.modalActions} style={{ marginTop: '2rem' }}>
+              <Button onClick={() => setIsItemSelectionModalOpen(false)}>Done</Button>
+            </div>
           </div>
         </div>
       )}

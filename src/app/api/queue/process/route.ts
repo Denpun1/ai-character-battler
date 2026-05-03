@@ -40,24 +40,25 @@ export async function POST(req: NextRequest) {
       try {
         console.log(`[Worker] Starting background process for ${queueId}`);
         
-        // Fetch Context
+        // Parse custom format: ["charId::itemId1,itemId2", "charId2::"]
+        const parsedParticipants = (queueItem.participant_ids || []).map((entry: string) => {
+          const [charId, itemIdsStr] = entry.split('::');
+          return { charId, itemIds: itemIdsStr ? itemIdsStr.split(',') : [] };
+        });
+
         const [charsRes, itemsRes] = await Promise.all([
-          supabase.from('characters').select('*').in('id', queueItem.participant_ids || []),
+          supabase.from('characters').select('*').in('id', parsedParticipants.map((p: any) => p.charId)),
           supabase.from('items').select('*')
         ]);
 
-        const fighters = charsRes.data?.map(c => {
-          let targetItemId = c.item_id;
-          if (c.id === queueItem.p1_id) targetItemId = queueItem.p1_item_id;
-          else if (c.id === queueItem.p2_id) targetItemId = queueItem.p2_item_id;
-          
-          return {
-            ...c,
-            itemDetails: itemsRes.data?.find(i => i.id === targetItemId)
-          };
-        }) || [];
+        const fighters = parsedParticipants.map((p: any) => {
+          const char = charsRes.data?.find(c => c.id === p.charId);
+          if (!char) return null;
+          const equippedItems = itemsRes.data?.filter(i => p.itemIds.includes(i.id)) || [];
+          return { ...char, equippedItems };
+        }).filter(Boolean);
 
-        if (fighters.length < 2) throw new Error("Invalid fighters configuration.");
+        if (fighters.length < 2) throw new Error("Invalid fighters configuration (minimum 2 required).");
 
         // AI Execution
         const provider = queueItem.provider || 'google';
@@ -104,7 +105,7 @@ ${buildPrompt(queueItem, fighters)}
           p2_id: queueItem.p2_id,
           winner_name: winnerName,
           log_text: fullText,
-          participant_ids: fighters.map(f => f.id),
+          participant_ids: fighters.map((f: any) => f.id),
           created_at: Date.now()
         }).select('id').single();
 
@@ -140,9 +141,11 @@ ${buildPrompt(queueItem, fighters)}
 
 function buildPrompt(queueItem: any, fighters: any[]) {
   let p = "";
-  fighters.forEach((f, i) => {
-    const itemStr = f.itemDetails ? `\n装備アイテム: ${f.itemDetails.name} - ${f.itemDetails.description}` : '';
-    p += `\n# キャラクター: ${f.name}\n${f.skills}${itemStr}\n`;
+  fighters.forEach((f) => {
+    const itemsStr = f.equippedItems?.length > 0 
+      ? `\n装備アイテム:\n` + f.equippedItems.map((item: any) => `・${item.name} - ${item.description}`).join('\n')
+      : '';
+    p += `\n# キャラクター: ${f.name}\n${f.skills}${itemsStr}\n`;
   });
   return p.trim();
 }
