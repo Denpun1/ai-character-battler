@@ -212,7 +212,14 @@ export default function Home() {
 
   const selectSocketChar = (charId: string) => {
     if (activeSocketId) {
-      setEntrySockets(prev => prev.map(s => s.id === activeSocketId ? { ...s, charId } : s));
+      setEntrySockets(prev => {
+        const newSockets = prev.map(s => s.id === activeSocketId ? { ...s, charId } : s);
+        // Automatically add a new empty socket if we are filling the last available slot
+        if (newSockets[newSockets.length - 1].charId !== null) {
+          return [...newSockets, { id: `socket_${Date.now()}`, charId: null, itemIds: [] }];
+        }
+        return newSockets;
+      });
     }
     setIsCharSelectionModalOpen(false);
     setActiveSocketId(null);
@@ -277,6 +284,12 @@ export default function Home() {
       setNotification({ message: '最低2つのキャラクターをセットしてください', type: 'error' });
       return;
     }
+    
+    // Fire 'start' trigger for plugins (so plugins set to run BEFORE battle will execute)
+    window.dispatchEvent(new CustomEvent('plugin:run', { 
+      detail: { triggerType: 'start' } 
+    }));
+
     try {
       const participantPayload = validSockets.map(s => `${s.charId}::${s.itemIds.join(',')}`);
 
@@ -367,7 +380,7 @@ export default function Home() {
           <div className={styles.rosterSection} style={{ marginBottom: '3rem', padding: '2rem', background: 'rgba(37, 99, 235, 0.05)', borderRadius: '16px', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
             <div className={styles.rosterHeader}>
               <h2 style={{ color: '#60a5fa' }}>Battle Entry</h2>
-              <Button onClick={addSocket}>+ Add Socket</Button>
+              {/* Removed manual Add Socket button as it is now automatic */}
             </div>
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'stretch' }}>
               {entrySockets.map((s, idx) => {
@@ -375,7 +388,11 @@ export default function Home() {
                 return (
                   <div key={s.id} className={styles.characterCard} style={{ flex: '1 1 300px', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', border: char ? `2px solid ${char.color}` : '2px dashed rgba(255,255,255,0.1)', padding: '1.5rem', borderRadius: '16px', background: 'rgba(255, 255, 255, 0.03)' }}>
                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--foreground)', opacity: 0.8 }}>Socket {idx + 1}</div>
-                    {idx >= 2 && <button onClick={() => removeSocket(s.id)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>}
+                    
+                    {/* Allow deleting any socket except if it's the very last empty one and we only have 1 */}
+                    {(entrySockets.length > 1 && (s.charId || idx < entrySockets.length - 1)) && (
+                      <button onClick={() => removeSocket(s.id)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                    )}
                     
                     <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
                       {char ? (
@@ -528,7 +545,7 @@ export default function Home() {
 
       {isCharSelectionModalOpen && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '800px' }}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 className={styles.modalTitle}>Select Character for Socket</h2>
             <div className={styles.grid}>
               {characters.map(char => (
@@ -552,7 +569,7 @@ export default function Home() {
 
       {isItemSelectionModalOpen && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '800px' }}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 className={styles.modalTitle}>Select Item to Equip</h2>
             <div className={styles.grid}>
               {items.map(it => {
