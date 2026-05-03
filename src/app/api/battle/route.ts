@@ -12,13 +12,14 @@ export async function POST(req: NextRequest) {
       showThinking, 
       thinkingBudget, 
       thinkingLevel, 
-      provider
+      provider,
+      playerInfo: overridePlayerInfo // From plugin AI node
     } = await req.json();
 
     // Support both players array and legacy p1/p2
     const finalPlayers = players || (p1 && p2 ? [p1, p2] : []);
 
-    if (finalPlayers.length === 0) {
+    if (finalPlayers.length === 0 && !overridePlayerInfo) {
       return new Response(JSON.stringify({ error: "Missing characters data" }), { status: 400 });
     }
 
@@ -37,11 +38,13 @@ export async function POST(req: NextRequest) {
 
       const ai = new GoogleGenAI({ apiKey });
       
-      let playerInfo = '';
-      finalPlayers.forEach((p: any, idx: number) => {
-        const itemStr = p.itemDetails ? `\n装備アイテム: ${p.itemDetails.name} - ${p.itemDetails.description}` : '';
-        playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemStr}\n`;
-      });
+      let playerInfo = overridePlayerInfo || '';
+      if (!overridePlayerInfo) {
+        finalPlayers.forEach((p: any, idx: number) => {
+          const itemStr = p.itemDetails ? `\n装備アイテム: ${p.itemDetails.name} - ${p.itemDetails.description}` : '';
+          playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemStr}\n`;
+        });
+      }
 
       const config: any = {
         temperature: typeof temperature === 'number' ? temperature : 0.7,
@@ -104,13 +107,15 @@ ${playerInfo}
         basePrompt = '<|think|>\n' + basePrompt;
       }
 
-      let playerInfo = '';
-      finalPlayers.forEach((p: any) => {
-        const itemStr = p.itemDetails ? `\n装備: ${p.itemDetails.name} (${p.itemDetails.description})` : '';
-        playerInfo += `\n${p.name}: ${p.skills}${itemStr}\n`;
-      });
+      let playerInfo = overridePlayerInfo || '';
+      if (!overridePlayerInfo) {
+        finalPlayers.forEach((p: any) => {
+          const itemStr = p.itemDetails ? `\n装備アイテム: ${p.itemDetails.name} - ${p.itemDetails.description}` : '';
+          playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemStr}\n`;
+        });
+      }
 
-      let userPrompt = playerInfo;
+      let userPrompt = `### 参加者データ\n${playerInfo}\n\n上記のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力し、対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`;
 
       const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
         method: 'POST',
