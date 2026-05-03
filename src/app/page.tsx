@@ -230,13 +230,23 @@ export default function Home() {
   const startBattle = async () => {
     if (selectedIds.length < 2 || !user) return;
     try {
+      const p1Id = selectedIds[0];
+      const p2Id = selectedIds[1];
+      
+      const resolvedP1ItemId = itemOverrides[p1Id] === 'none' ? null : (itemOverrides[p1Id] || characters.find(c => c.id === p1Id)?.itemId || null);
+      const resolvedP2ItemId = itemOverrides[p2Id] === 'none' ? null : (itemOverrides[p2Id] || characters.find(c => c.id === p2Id)?.itemId || null);
+
       const { data, error } = await supabase.from('battle_queue').insert({
         user_id: user.id,
-        participant_ids: selectedIds,
-        system_prompt: systemPrompt,
-        model: model,
-        temperature: temperature,
-        provider: provider,
+        participant_ids: selectedIds, // N-way support
+        p1_id: p1Id, // Fallback for 2-way logic
+        p2_id: p2Id,
+        p1_item_id: resolvedP1ItemId,
+        p2_item_id: resolvedP2ItemId,
+        system_prompt: settings.systemPrompt, // Always use truth from settings
+        model: settings.model,
+        temperature: settings.temperature,
+        provider: settings.provider,
         status: 'pending',
         created_at: Date.now()
       }).select('id').single();

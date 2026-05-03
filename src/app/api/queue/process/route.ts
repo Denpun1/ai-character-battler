@@ -46,10 +46,16 @@ export async function POST(req: NextRequest) {
           supabase.from('items').select('*')
         ]);
 
-        const fighters = charsRes.data?.map(c => ({
-          ...c,
-          itemDetails: itemsRes.data?.find(i => i.id === (c.id === queueItem.p1_id ? queueItem.p1_item_id : queueItem.p2_item_id) || c.itemId)
-        })) || [];
+        const fighters = charsRes.data?.map(c => {
+          let targetItemId = c.item_id;
+          if (c.id === queueItem.p1_id) targetItemId = queueItem.p1_item_id;
+          else if (c.id === queueItem.p2_id) targetItemId = queueItem.p2_item_id;
+          
+          return {
+            ...c,
+            itemDetails: itemsRes.data?.find(i => i.id === targetItemId)
+          };
+        }) || [];
 
         if (fighters.length < 2) throw new Error("Invalid fighters configuration.");
 
