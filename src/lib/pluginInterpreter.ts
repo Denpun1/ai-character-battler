@@ -36,7 +36,7 @@ export async function runPluginFlow(
     currentNodes = nextEdges.map(e => nodes.find(n => n.id === e.target)).filter(Boolean);
     console.log(`[Plugin Interpreter] Resuming flow from node: ${startNodeId}, found ${currentNodes.length} children`);
   } else {
-    currentNodes = nodes.filter(n => n.type === 'start' && n.data.triggerType === triggerType);
+    currentNodes = nodes.filter(n => n.type === 'start' && (n.data.triggerType === triggerType || (!n.data.triggerType && triggerType === 'start')));
   }
 
   if (currentNodes.length === 0) {
@@ -92,7 +92,7 @@ export async function runPluginFlow(
               if (done) break;
               text += decoder.decode(value);
             }
-            variables[`${node.id}_trigger-out`] = text;
+            variables[`${node.id}_out-text`] = text;
           } catch (e) {
             console.error("AI Node Execution Error:", e);
           }
