@@ -29,7 +29,11 @@ export async function runPluginFlow(
   const resolveData = (nodeId: string, handleId: string, fallback: any) => {
     const edge = edges.find(e => e.target === nodeId && e.targetHandle === `in-${handleId}`);
     if (edge) {
-      return variables[`${edge.source}_${edge.sourceHandle}`] ?? fallback;
+      const varKey = `${edge.source}_${edge.sourceHandle}`;
+      if (!(varKey in variables)) {
+        logToUI(`[WARNING] Variable ${varKey} is missing! Did you forget to connect the execution line to the node providing this data?`);
+      }
+      return variables[varKey] ?? fallback;
     }
     return fallback;
   };
@@ -132,12 +136,23 @@ export async function runPluginFlow(
 
         case "log":
           {
-            const message = resolveData(node.id, "message", node.data.message || "Empty log message");
+            const rawMessage = resolveData(node.id, "message", undefined);
+            const isUndefined = typeof rawMessage === 'undefined';
+            const isEmtpy = rawMessage === '';
+            
+            logToUI(`LogNode check: Edge data is ${isUndefined ? 'UNDEFINED' : (isEmtpy ? 'EMPTY' : 'FOUND')}`);
+            
+            const fallback = node.data.message || "Empty log message";
+            const message = isUndefined ? fallback : (isEmtpy ? "(No Output from AI)" : rawMessage);
+            
+            const targetSlot = node.data.slot || "battle";
+            logToUI(`LogNode emitting to UI: slot=${targetSlot}, posMode=${node.data.posMode || 'slot'}`);
+
             window.dispatchEvent(new CustomEvent('plugin:ui:display', {
               detail: { 
                 message, 
                 mode: node.data.mode || "box", 
-                slot: node.data.slot || "battle", 
+                slot: targetSlot, 
                 posMode: node.data.posMode || 'slot', 
                 posX: node.data.posX || 0, 
                 posY: node.data.posY || 0, 
