@@ -101,25 +101,7 @@ export default function HistoryPage() {
                      fontSize: '0.95rem',
                      lineHeight: '1.6'
                    }}>
-                     {(() => {
-                       if (h.log_text) {
-                         const cleanedLog = h.log_text.replace(/```json/gi, '').replace(/```/g, '').trim();
-                         if (cleanedLog.startsWith('{')) {
-                           try {
-                             const parsed = JSON.parse(cleanedLog);
-                             return (
-                               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                 {parsed.log && <div style={{ whiteSpace: 'pre-wrap' }}>{parsed.log}</div>}
-                               </div>
-                             );
-                           } catch (e) {
-                             return <div style={{ whiteSpace: 'pre-wrap' }}>{cleanedLog}</div>;
-                           }
-                         }
-                         return <div style={{ whiteSpace: 'pre-wrap' }}>{cleanedLog}</div>;
-                       }
-                       return null;
-                     })()}
+                     {h.log_text}
                    </div>
                  </details>
                </Card>

@@ -55,22 +55,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const responseSchema = {
-        type: "OBJECT",
-        properties: {
-          winner: { type: "STRING" },
-          log: { type: "STRING" }
-        },
-        required: ["winner", "log"]
-      };
-
       const finalPrompt = `
 ${systemPrompt}
 
 ### 参加者データ
 ${playerInfo}
 
-上記のキャラクターによる対戦シミュレーションを実行し、その結果をJSONで出力してください。
+上記のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力し、対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
 `.trim();
 
       const responseStream = await ai.models.generateContentStream({
@@ -78,9 +69,7 @@ ${playerInfo}
         contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
         config: {
           ...config,
-          maxOutputTokens: 8192,
-          responseMimeType: 'application/json',
-          responseSchema: responseSchema,
+          maxOutputTokens: 8192
         }
       });
 

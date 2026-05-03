@@ -75,24 +75,15 @@ ${queueItem.system_prompt}
 ### 参加者データ
 ${buildPrompt(queueItem, fighters)}
 
-上記のキャラクターによる対戦シミュレーションを実行し、その結果をJSONで出力してください。
+上記のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力し、対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
 `.trim();
-          const responseSchema = {
-            type: "OBJECT",
-            properties: {
-              winner: { type: "STRING" },
-              log: { type: "STRING" }
-            },
-            required: ["winner", "log"]
-          };
+
           const stream = await genAI.models.generateContentStream({
             model: modelName,
             contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
             config: { 
               temperature: queueItem.temperature || 0.7,
-              maxOutputTokens: 8192,
-              responseMimeType: 'application/json',
-              responseSchema: responseSchema,
+              maxOutputTokens: 8192
             }
           });
 
@@ -104,14 +95,7 @@ ${buildPrompt(queueItem, fighters)}
         }
 
         let winnerName = null;
-        let cleanedText = fullText;
-        try {
-          cleanedText = fullText.replace(/```json/gi, '').replace(/```/g, '').trim();
-          const parsed = JSON.parse(cleanedText);
-          winnerName = parsed.winner || null;
-        } catch (e) {
-          winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
-        }
+        winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
 
         // Persist Result
         const { data: history, error: histError } = await supabase.from('battle_history').insert({
@@ -119,7 +103,7 @@ ${buildPrompt(queueItem, fighters)}
           p1_id: queueItem.p1_id,
           p2_id: queueItem.p2_id,
           winner_name: winnerName,
-          log_text: cleanedText,
+          log_text: fullText,
           participant_ids: fighters.map(f => f.id),
           created_at: Date.now()
         }).select('id').single();

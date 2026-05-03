@@ -472,6 +472,22 @@ export default function Home() {
               <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
               <div className={styles.formGroup}><label>Temperature</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
               <div className={styles.formGroup}>
+                <label>📋 Load Saved Instruction (プリセット読み込み)</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <select 
+                    className={styles.input} 
+                    onChange={e => handleLoadPreset(e.target.value)}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>-- Select Preset --</option>
+                    {presets.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
                 <label>Instruction: Battle (バトル用指示)</label>
                 <textarea 
                   value={systemPrompt} 
@@ -584,45 +600,19 @@ export default function Home() {
               </h2>
               
               <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
-                {(() => {
-                  if (!battleLog) return null;
-                  const cleanedLog = battleLog.replace(/```json/gi, '').replace(/```/g, '').trim();
-                  if (cleanedLog.startsWith('{')) {
-                    try {
-                      // Attempt to parse complete JSON
-                      const parsed = JSON.parse(cleanedLog);
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                          {parsed.winner && (
-                            <div style={{ padding: '1.5rem', background: 'linear-gradient(135deg, rgba(37,99,235,0.2) 0%, rgba(219,39,119,0.2) 100%)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center' }}>
-                              <h3 style={{ margin: 0, fontSize: '1.2rem', opacity: 0.8 }}>WINNER</h3>
-                              <div style={{ fontSize: '2.5rem', fontWeight: 'bold', textShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>{parsed.winner}</div>
-                            </div>
-                          )}
-                          {parsed.log && (
-                            <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem', background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '12px' }}>
-                              {parsed.log}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    } catch (e) {
-                      // It's a partial JSON string (streaming). Just show the raw string safely.
-                      return (
-                        <pre style={{ background: '#111', padding: '1rem', borderRadius: '8px', overflow: 'auto', fontSize: '0.9rem', whiteSpace: 'pre-wrap', color: 'rgba(255,255,255,0.6)' }}>
-                          {cleanedLog}
-                          <span style={{ animation: 'blink 1s infinite' }}>...</span>
-                        </pre>
-                      );
-                    }
-                  } else {
-                    return (
-                      <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
-                        {cleanedLog}
-                      </div>
-                    );
-                  }
-                })()}
+                {battleLog && (
+                  <div style={{ 
+                    whiteSpace: 'pre-wrap', 
+                    lineHeight: '1.8', 
+                    fontSize: '1.1rem',
+                    background: 'rgba(0,0,0,0.3)',
+                    padding: '2rem',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.05)'
+                  }}>
+                    {battleLog}
+                  </div>
+                )}
                 
                 {pluginLogs.filter(log => log.slot === 'battle' && log.posMode !== 'absolute').map((log, i) => (
                   <div key={i} style={log.mode === 'box' ? { 
