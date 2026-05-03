@@ -574,15 +574,55 @@ export default function Home() {
               </h2>
               
               <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
-                {battleLog && (
-                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
-                    {battleLog.startsWith('{') ? (
-                      <pre style={{ background: '#111', padding: '1rem', borderRadius: '8px', overflow: 'auto', fontSize: '0.9rem' }}>
-                        {JSON.stringify(JSON.parse(battleLog), null, 2)}
-                      </pre>
-                    ) : battleLog}
-                  </div>
-                )}
+                {(() => {
+                  if (!battleLog) return null;
+                  if (battleLog.startsWith('{')) {
+                    try {
+                      // Attempt to parse complete JSON
+                      const parsed = JSON.parse(battleLog);
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                          {parsed.winner && (
+                            <div style={{ padding: '1.5rem', background: 'linear-gradient(135deg, rgba(37,99,235,0.2) 0%, rgba(219,39,119,0.2) 100%)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center' }}>
+                              <h3 style={{ margin: 0, fontSize: '1.2rem', opacity: 0.8 }}>WINNER</h3>
+                              <div style={{ fontSize: '2.5rem', fontWeight: 'bold', textShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>{parsed.winner}</div>
+                            </div>
+                          )}
+                          {parsed.log && (
+                            <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem', background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '12px' }}>
+                              {parsed.log}
+                            </div>
+                          )}
+                          {parsed.rounds && parsed.rounds.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                              <h3 style={{ fontSize: '1.2rem', color: '#2563eb', borderBottom: '1px solid rgba(37,99,235,0.3)', paddingBottom: '0.5rem' }}>Rounds</h3>
+                              {parsed.rounds.map((r: any, idx: number) => (
+                                <div key={idx} style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', borderLeft: '4px solid #db2777' }}>
+                                  <div style={{ fontWeight: 'bold', color: '#db2777', marginBottom: '0.5rem' }}>Round {r.round}: {r.action}</div>
+                                  <div style={{ lineHeight: '1.6' }}>{r.message}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    } catch (e) {
+                      // It's a partial JSON string (streaming). Just show the raw string safely.
+                      return (
+                        <pre style={{ background: '#111', padding: '1rem', borderRadius: '8px', overflow: 'auto', fontSize: '0.9rem', whiteSpace: 'pre-wrap', color: 'rgba(255,255,255,0.6)' }}>
+                          {battleLog}
+                          <span style={{ animation: 'blink 1s infinite' }}>...</span>
+                        </pre>
+                      );
+                    }
+                  } else {
+                    return (
+                      <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
+                        {battleLog}
+                      </div>
+                    );
+                  }
+                })()}
                 
                 {pluginLogs.filter(log => log.slot === 'battle' && log.posMode !== 'absolute').map((log, i) => (
                   <div key={i} style={log.mode === 'box' ? { 

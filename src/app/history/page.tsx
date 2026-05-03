@@ -91,7 +91,6 @@ export default function HistoryPage() {
                  <details style={{ marginTop: '1rem' }}>
                    <summary style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 500 }}>View Full Log</summary>
                    <div style={{ 
-                     whiteSpace: 'pre-wrap', 
                      marginTop: '1rem', 
                      background: 'var(--card-bg)', 
                      border: '1px solid var(--border)',
@@ -102,7 +101,32 @@ export default function HistoryPage() {
                      fontSize: '0.95rem',
                      lineHeight: '1.6'
                    }}>
-                     {h.log_text}
+                     {(() => {
+                       if (h.log_text && h.log_text.startsWith('{')) {
+                         try {
+                           const parsed = JSON.parse(h.log_text);
+                           return (
+                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                               {parsed.log && <div style={{ whiteSpace: 'pre-wrap' }}>{parsed.log}</div>}
+                               {parsed.rounds && parsed.rounds.length > 0 && (
+                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                                   <div style={{ fontWeight: 'bold', color: 'var(--primary)' }}>Rounds:</div>
+                                   {parsed.rounds.map((r: any, idx: number) => (
+                                     <div key={idx} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '4px', borderLeft: '3px solid var(--primary)' }}>
+                                       <strong>Round {r.round}:</strong> {r.action}<br/>
+                                       <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>{r.message}</span>
+                                     </div>
+                                   ))}
+                                 </div>
+                               )}
+                             </div>
+                           );
+                         } catch (e) {
+                           return <div style={{ whiteSpace: 'pre-wrap' }}>{h.log_text}</div>;
+                         }
+                       }
+                       return <div style={{ whiteSpace: 'pre-wrap' }}>{h.log_text}</div>;
+                     })()}
                    </div>
                  </details>
                </Card>
