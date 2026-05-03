@@ -328,6 +328,47 @@ export default function Home() {
         battleResult={battleLog ? { log_text: battleLog } : undefined} 
         systemPrompt={settings.systemPrompt}
       />
+
+      {/* Global Plugin UI overlays (Absolute & Sidebar) */}
+      {pluginButtons.filter(b => b.posMode === 'absolute').map((btn, i) => (
+        <div key={`global-btn-${i}`} style={{ 
+          position: 'fixed', left: btn.posX, top: btn.posY, zIndex: 9999,
+          width: btn.width ? `${btn.width}px` : 'auto',
+          height: btn.height ? `${btn.height}px` : 'auto'
+        }}>
+          <Button onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ width: '100%', height: '100%' }}>
+            {btn.label}
+          </Button>
+        </div>
+      ))}
+      {pluginLogs.filter(log => log.posMode === 'absolute').map((log, i) => (
+        <div key={`global-log-${i}`} style={{ 
+          position: 'fixed', left: log.posX, top: log.posY, zIndex: 9999,
+          width: log.width ? `${log.width}px` : '300px',
+          height: log.height ? `${log.height}px` : 'auto',
+          pointerEvents: 'none'
+        }}>
+          <div style={log.mode === 'box' ? { 
+            padding: '1rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px',
+            width: '100%', height: '100%', overflow: 'auto'
+          } : { textShadow: '2px 2px 4px rgba(0,0,0,0.8)', width: '100%', height: '100%' }}>
+            {log.message}
+          </div>
+        </div>
+      ))}
+      {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').length > 0 && (
+        <div style={{ 
+          position: 'fixed', top: '100px', right: '2rem', width: '250px', 
+          display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100 
+        }}>
+          {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').map((log, i) => (
+            <div key={`global-sidebar-${i}`} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px', fontSize: '0.85rem' }}>
+              {log.message}
+            </div>
+          ))}
+        </div>
+      )}
+
       <header className={styles.header}>
         <h1 className={styles.title}>Welcome to the Arena</h1>
         <div>
