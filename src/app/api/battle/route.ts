@@ -59,19 +59,7 @@ export async function POST(req: NextRequest) {
         type: "OBJECT",
         properties: {
           winner: { type: "STRING" },
-          log: { type: "STRING" },
-          rounds: {
-            type: "ARRAY",
-            items: {
-              type: "OBJECT",
-              properties: {
-                round: { type: "NUMBER" },
-                action: { type: "STRING" },
-                message: { type: "STRING" }
-              },
-              required: ["round", "action", "message"]
-            }
-          }
+          log: { type: "STRING" }
         },
         required: ["winner", "log"]
       };

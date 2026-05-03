@@ -102,30 +102,23 @@ export default function HistoryPage() {
                      lineHeight: '1.6'
                    }}>
                      {(() => {
-                       if (h.log_text && h.log_text.startsWith('{')) {
-                         try {
-                           const parsed = JSON.parse(h.log_text);
-                           return (
-                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                               {parsed.log && <div style={{ whiteSpace: 'pre-wrap' }}>{parsed.log}</div>}
-                               {parsed.rounds && parsed.rounds.length > 0 && (
-                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-                                   <div style={{ fontWeight: 'bold', color: 'var(--primary)' }}>Rounds:</div>
-                                   {parsed.rounds.map((r: any, idx: number) => (
-                                     <div key={idx} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '4px', borderLeft: '3px solid var(--primary)' }}>
-                                       <strong>Round {r.round}:</strong> {r.action}<br/>
-                                       <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>{r.message}</span>
-                                     </div>
-                                   ))}
-                                 </div>
-                               )}
-                             </div>
-                           );
-                         } catch (e) {
-                           return <div style={{ whiteSpace: 'pre-wrap' }}>{h.log_text}</div>;
+                       if (h.log_text) {
+                         const cleanedLog = h.log_text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                         if (cleanedLog.startsWith('{')) {
+                           try {
+                             const parsed = JSON.parse(cleanedLog);
+                             return (
+                               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                 {parsed.log && <div style={{ whiteSpace: 'pre-wrap' }}>{parsed.log}</div>}
+                               </div>
+                             );
+                           } catch (e) {
+                             return <div style={{ whiteSpace: 'pre-wrap' }}>{cleanedLog}</div>;
+                           }
                          }
+                         return <div style={{ whiteSpace: 'pre-wrap' }}>{cleanedLog}</div>;
                        }
-                       return <div style={{ whiteSpace: 'pre-wrap' }}>{h.log_text}</div>;
+                       return null;
                      })()}
                    </div>
                  </details>

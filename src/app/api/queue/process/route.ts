@@ -75,19 +75,7 @@ ${buildPrompt(queueItem, fighters)}
             type: "OBJECT",
             properties: {
               winner: { type: "STRING" },
-              log: { type: "STRING" },
-              rounds: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  properties: {
-                    round: { type: "NUMBER" },
-                    action: { type: "STRING" },
-                    message: { type: "STRING" }
-                  },
-                  required: ["round", "action", "message"]
-                }
-              }
+              log: { type: "STRING" }
             },
             required: ["winner", "log"]
           };
@@ -110,8 +98,10 @@ ${buildPrompt(queueItem, fighters)}
         }
 
         let winnerName = null;
+        let cleanedText = fullText;
         try {
-          const parsed = JSON.parse(fullText);
+          cleanedText = fullText.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleanedText);
           winnerName = parsed.winner || null;
         } catch (e) {
           winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
@@ -123,7 +113,7 @@ ${buildPrompt(queueItem, fighters)}
           p1_id: queueItem.p1_id,
           p2_id: queueItem.p2_id,
           winner_name: winnerName,
-          log_text: fullText,
+          log_text: cleanedText,
           participant_ids: fighters.map(f => f.id),
           created_at: Date.now()
         }).select('id').single();

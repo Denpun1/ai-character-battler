@@ -576,10 +576,11 @@ export default function Home() {
               <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
                 {(() => {
                   if (!battleLog) return null;
-                  if (battleLog.startsWith('{')) {
+                  const cleanedLog = battleLog.replace(/```json/gi, '').replace(/```/g, '').trim();
+                  if (cleanedLog.startsWith('{')) {
                     try {
                       // Attempt to parse complete JSON
-                      const parsed = JSON.parse(battleLog);
+                      const parsed = JSON.parse(cleanedLog);
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                           {parsed.winner && (
@@ -593,24 +594,13 @@ export default function Home() {
                               {parsed.log}
                             </div>
                           )}
-                          {parsed.rounds && parsed.rounds.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                              <h3 style={{ fontSize: '1.2rem', color: '#2563eb', borderBottom: '1px solid rgba(37,99,235,0.3)', paddingBottom: '0.5rem' }}>Rounds</h3>
-                              {parsed.rounds.map((r: any, idx: number) => (
-                                <div key={idx} style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', borderLeft: '4px solid #db2777' }}>
-                                  <div style={{ fontWeight: 'bold', color: '#db2777', marginBottom: '0.5rem' }}>Round {r.round}: {r.action}</div>
-                                  <div style={{ lineHeight: '1.6' }}>{r.message}</div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       );
                     } catch (e) {
                       // It's a partial JSON string (streaming). Just show the raw string safely.
                       return (
                         <pre style={{ background: '#111', padding: '1rem', borderRadius: '8px', overflow: 'auto', fontSize: '0.9rem', whiteSpace: 'pre-wrap', color: 'rgba(255,255,255,0.6)' }}>
-                          {battleLog}
+                          {cleanedLog}
                           <span style={{ animation: 'blink 1s infinite' }}>...</span>
                         </pre>
                       );
@@ -618,7 +608,7 @@ export default function Home() {
                   } else {
                     return (
                       <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
-                        {battleLog}
+                        {cleanedLog}
                       </div>
                     );
                   }
