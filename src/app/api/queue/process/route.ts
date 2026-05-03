@@ -141,9 +141,10 @@ ${buildPrompt(queueItem, fighters)}
 function buildPrompt(queueItem: any, fighters: any[]) {
   let p = "";
   fighters.forEach((f, i) => {
-    p += `【キャラクター${i + 1}】\n名前: ${f.name}\n特徴/スキル: ${f.skills}\n装備アイテム: ${f.itemDetails?.name || 'なし'}\n\n`;
+    const itemStr = f.itemDetails ? `\n装備アイテム: ${f.itemDetails.name} - ${f.itemDetails.description}` : '';
+    p += `\n# キャラクター: ${f.name}\n${f.skills}${itemStr}\n`;
   });
-  return p;
+  return p.trim();
 }
 
 async function runLightningAI(queueItem: any, fighters: any[]) {

@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
       
       let playerInfo = '';
       finalPlayers.forEach((p: any, idx: number) => {
-        const itemStr = p.itemDetails ? `\n装備: ${p.itemDetails.name} (${p.itemDetails.description})` : '';
-        playerInfo += `\n${p.name}: ${p.skills}${itemStr}\n`;
+        const itemStr = p.itemDetails ? `\n装備アイテム: ${p.itemDetails.name} - ${p.itemDetails.description}` : '';
+        playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemStr}\n`;
       });
 
       const config: any = {
