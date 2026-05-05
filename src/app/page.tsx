@@ -145,6 +145,17 @@ function ArenaContent() {
     } catch (err: any) { alert(err.message); }
   };
 
+  const openSettings = () => {
+    setSystemPrompt(settings.systemPrompt);
+    setModel(settings.model);
+    setTemperature(settings.temperature);
+    setShowThinking(settings.showThinking);
+    setThinkingBudget(settings.thinkingBudget);
+    setThinkingLevel(settings.thinkingLevel || 'HIGH');
+    setProvider(settings.provider || 'google');
+    setIsSettingsOpen(true);
+  };
+
   const selectSocketChar = (charId: string) => {
     if (activeSocketId) {
       setEntrySockets(prev => {
@@ -203,7 +214,7 @@ function ArenaContent() {
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center' }}>
               <h2 style={{ margin: 0 }}>Battle Arena</h2>
               <div style={{ flexGrow: 1 }} />
-              <Button variant="secondary" onClick={() => setIsSettingsOpen(true)}>Settings</Button>
+              <Button variant="secondary" onClick={openSettings}>Settings</Button>
             </div>
 
             <div className={styles.rosterSection} style={{ marginBottom: '2rem', padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '16px' }}>
@@ -344,10 +355,52 @@ function ArenaContent() {
 
       {isSettingsOpen && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
+          <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
             <h2>Settings</h2>
-            <div className={styles.formGroup}><label>Model</label><input className={styles.input} value={model} onChange={e => setModel(e.target.value)} /></div>
-            <div className={styles.modalActions}><Button onClick={() => setIsSettingsOpen(false)}>Close</Button></div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+              setIsSettingsOpen(false);
+            }}>
+              <div className={styles.formGroup}><label>API Provider</label><select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}><option value="google">Google AI</option><option value="lightning">Lightning AI</option></select></div>
+              <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
+              <div className={styles.formGroup}><label>Temperature</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
+              <div className={styles.formGroup}>
+                <label>📋 Load Saved Instruction</label>
+                <select className={styles.input} onChange={e => {
+                  const p = presets.find(x => x.id === e.target.value);
+                  if (p) {
+                    setSystemPrompt(p.systemPrompt); setModel(p.model); setTemperature(p.temperature);
+                    setShowThinking(p.showThinking); setThinkingBudget(p.thinkingBudget); setThinkingLevel(p.thinkingLevel); setProvider(p.provider);
+                  }
+                }} defaultValue="">
+                  <option value="" disabled>-- Select Preset --</option>
+                  {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className={styles.formGroup}>
+                <label>Instruction: Battle</label>
+                <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '120px' }} required />
+              </div>
+              <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
+              <div className={styles.formGroup}>
+                <label>💾 Save current settings as New Instruction</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input type="text" value={newPresetName} onChange={e => setNewPresetName(e.target.value)} className={styles.input} placeholder="Instruction name" />
+                  <Button type="button" variant="secondary" onClick={() => {
+                    if (!newPresetName.trim()) return;
+                    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+                    setNewPresetName('');
+                  }} disabled={!newPresetName.trim()}>Save New</Button>
+                </div>
+              </div>
+              <div className={styles.modalActions}>
+                <Button variant="secondary" type="button" onClick={() => setSystemPrompt('')}>Reset Prompts</Button>
+                <div style={{ flexGrow: 1 }} />
+                <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
+                <Button type="submit">Apply Settings</Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
