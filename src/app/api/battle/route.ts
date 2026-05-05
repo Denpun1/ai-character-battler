@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
           } else if (p.itemDetails) {
             itemsStr = `\n装備アイテム:\n・${p.itemDetails.name} - ${p.itemDetails.description}`;
           }
-          playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemsStr}\n`;
+          playerInfo += `\n# キャラクター: ${p.name}\n${p.description}${itemsStr}\n`;
         });
       }
 
@@ -121,7 +121,7 @@ ${playerInfo}
           } else if (p.itemDetails) {
             itemsStr = `\n装備アイテム:\n・${p.itemDetails.name} - ${p.itemDetails.description}`;
           }
-          playerInfo += `\n# キャラクター: ${p.name}\n${p.skills}${itemsStr}\n`;
+          playerInfo += `\n# キャラクター: ${p.name}\n${p.description}${itemsStr}\n`;
         });
       }
 

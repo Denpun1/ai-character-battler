@@ -145,7 +145,7 @@ function buildPrompt(queueItem: any, fighters: any[]) {
     const itemsStr = f.equippedItems?.length > 0 
       ? `\n装備アイテム:\n` + f.equippedItems.map((item: any) => `・${item.name} - ${item.description}`).join('\n')
       : '';
-    p += `\n# キャラクター: ${f.name}\n${f.skills}${itemsStr}\n`;
+    p += `\n# キャラクター: ${f.name}\n${f.description}${itemsStr}\n`;
   });
   return p.trim();
 }

@@ -1,8 +1,9 @@
 export interface Character {
   id: string;
+  user_id: string;
   name: string;
-  skills: string;
+  description: string;
   itemId?: string;
   color?: string;
-  createdAt: number;
+  created_at: number;
 }

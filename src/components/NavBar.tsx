@@ -13,13 +13,13 @@ export default function NavBar() {
     <nav className={styles.navbar}>
       <div className={styles.navContainer}>
         <div className={styles.navLinks}>
-          <Link href="/" className={`${styles.navLink} ${pathname === '/' || pathname === '/battle' ? styles.active : ''}`}>
+          <Link href="/?tab=arena" className={`${styles.navLink} ${pathname === '/' ? styles.active : ''}`}>
              ⚔️ AI Battler
           </Link>
-          <Link href="/history" className={`${styles.navLink} ${pathname === '/history' ? styles.active : ''}`}>
+          <Link href="/?tab=history" className={`${styles.navLink} ${pathname === '/history' ? styles.active : ''}`}>
              📜 History
           </Link>
-          <Link href="/queue" className={`${styles.navLink} ${pathname === '/queue' ? styles.active : ''}`}>
+          <Link href="/?tab=queue" className={`${styles.navLink} ${pathname === '/queue' ? styles.active : ''}`}>
              ⏳ Queue
           </Link>
         </div>

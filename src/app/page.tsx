@@ -1,26 +1,52 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useSettings } from '@/hooks/useSettings';
 import { useBattleRealtime } from '@/hooks/useBattleRealtime';
-import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
+import { useHistory } from '@/hooks/useHistory';
+import { useQueue } from '@/hooks/useQueue';
+import { useUser } from '@clerk/nextjs';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import styles from './page.module.css';
 
+// DnD Kit for Queue
+import { 
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { SortableQueueItem } from '@/components/SortableQueueItem';
+
 const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777'];
 
-export default function Home() {
-  const router = useRouter();
-  const { characters, isLoaded: charLoaded, addCharacter, editCharacter, deleteCharacter, fetchVariants, saveVariant, deleteVariant } = useCharacters();
+function ArenaContent() {
+  const { characters, isLoaded: charLoaded, addCharacter, editCharacter, deleteCharacter, fetchVariants, saveVariant } = useCharacters();
   const { items, isLoaded: itemsLoaded, addItem, editItem, deleteItem } = useItems();
-  const { settings, presets, isLoaded: settingsLoaded, saveSettings, createPreset, deletePreset } = useSettings();
-  const { isSignedIn, isLoaded: isAuthLoaded, user } = useUser();
+  const { settings, presets, isLoaded: settingsLoaded, saveSettings, createPreset } = useSettings();
+  const { isLoaded: isAuthLoaded, user } = useUser();
+  const searchParams = useSearchParams();
+  
+  // Custom Hooks for History & Queue
+  const { history, fetchHistory } = useHistory(user?.id);
+  const { queue, isProcessing, handleDragEnd, deleteQueueItem, processQueue } = useQueue(user?.id, characters, items);
+
+  const [globalTab, setGlobalTab] = useState<'arena' | 'history' | 'queue'>('arena');
+  const [arenaTab, setArenaTab] = useState<'entry' | 'result'>('entry');
+  
   interface EntrySocket {
     id: string;
     charId: string | null;
@@ -30,32 +56,24 @@ export default function Home() {
     { id: 'socket_1', charId: null, itemIds: [] },
     { id: 'socket_2', charId: null, itemIds: [] }
   ]);
-  const [activeSocketId, setActiveSocketId] = useState<string | null>(null); // For Character Selection Modal
-  const [activeSocketForItems, setActiveSocketForItems] = useState<string | null>(null); // For Item Selection Modal
+  
+  const [activeSocketId, setActiveSocketId] = useState<string | null>(null);
+  const [activeSocketForItems, setActiveSocketForItems] = useState<string | null>(null);
   const [isCharSelectionModalOpen, setIsCharSelectionModalOpen] = useState(false);
   const [isItemSelectionModalOpen, setIsItemSelectionModalOpen] = useState(false);
-
-  
-  // Modals state
   const [isCharModalOpen, setIsCharModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingCharId, setEditingCharId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  
-  // Character Form
   const [charName, setCharName] = useState('');
-  const [charSkills, setCharSkills] = useState('');
+  const [charDescription, setCharDescription] = useState('');
   const [charItemId, setCharItemId] = useState('');
   const [charColor, setCharColor] = useState(COLORS[0]);
   const [charVariants, setCharVariants] = useState<any[]>([]);
   const [newVariantName, setNewVariantName] = useState('');
-
-  // Item Form
   const [itemName, setItemName] = useState('');
   const [itemDesc, setItemDesc] = useState('');
-
-  // Settings Form
   const [systemPrompt, setSystemPrompt] = useState('');
   const [model, setModel] = useState('');
   const [temperature, setTemperature] = useState(0.7);
@@ -64,40 +82,40 @@ export default function Home() {
   const [thinkingLevel, setThinkingLevel] = useState<'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH'>('HIGH');
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
   const [newPresetName, setNewPresetName] = useState('');
-
   const [battleLog, setBattleLog] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'entry' | 'result'>('entry');
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
+
+  // DnD Sensors
+  const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useBattleRealtime();
 
   useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'history' || t === 'queue' || t === 'arena') {
+      setGlobalTab(t as any);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     const handleStatusChange = async (e: any) => {
       const data = e.detail;
-      
-      // Notify status change
       setNotification({ message: data.message, type: data.status === 'failed' ? 'error' : 'info' });
-      
       if (data.status === 'completed' && data.resultId) {
         const { data: result } = await supabase.from('battle_history').select('*').eq('id', data.resultId).single();
         if (result) {
           setBattleLog(result.log_text);
-          setNotification({ message: '対戦が完了しました！', type: 'success' });
-          setActiveTab('result'); // Auto-switch to result tab
+          setNotification({ message: 'Battle Complete!', type: 'success' });
+          setArenaTab('result');
+          setGlobalTab('arena');
+          fetchHistory();
         }
       }
-      
-      // Auto-clear notification after 5s
       setTimeout(() => setNotification(null), 5000);
     };
-
     window.addEventListener('battleStatusChange', handleStatusChange);
-    return () => {
-      window.removeEventListener('battleStatusChange', handleStatusChange);
-    };
-  }, []);
-
-
+    return () => window.removeEventListener('battleStatusChange', handleStatusChange);
+  }, [fetchHistory]);
 
   const openCharModal = async (id?: string) => {
     if (id) {
@@ -105,399 +123,202 @@ export default function Home() {
       if (char) {
         setEditingCharId(id);
         setCharName(char.name);
-        setCharSkills(char.skills);
+        setCharDescription(char.description);
         setCharItemId(char.itemId || '');
         setCharColor(char.color || COLORS[0]);
         const vars = await fetchVariants(id);
         setCharVariants(vars);
       }
     } else {
-      setEditingCharId(null);
-      setCharName('');
-      setCharSkills('');
-      setCharItemId('');
-      setCharColor(COLORS[0]);
-      setCharVariants([]);
+      setEditingCharId(null); setCharName(''); setCharDescription(''); setCharItemId(''); setCharColor(COLORS[0]); setCharVariants([]);
     }
-    setNewVariantName('');
-    setIsCharModalOpen(true);
+    setNewVariantName(''); setIsCharModalOpen(true);
   };
 
   const saveChar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!charName.trim() || !charSkills.trim()) return;
-    if (editingCharId) {
-      await editCharacter(editingCharId, charName.trim(), charSkills.trim(), charItemId, charColor);
-    } else {
-      await addCharacter(charName.trim(), charSkills.trim(), charItemId, charColor);
-    }
+    if (editingCharId) await editCharacter(editingCharId, charName, charDescription, charItemId, charColor);
+    else await addCharacter(charName, charDescription, charItemId, charColor);
     setIsCharModalOpen(false);
   };
 
-  const handleSaveVariant = async () => {
-    if (!editingCharId || !newVariantName.trim()) return;
-    await saveVariant(editingCharId, newVariantName, charSkills);
-    setNewVariantName('');
-    const vars = await fetchVariants(editingCharId);
-    setCharVariants(vars);
-  };
-
-  const loadVariant = (skills: string) => {
-    setCharSkills(skills);
-  };
-
-  const openItemModal = (id?: string) => {
-    if (id) {
-      const item = items.find(i => i.id === id);
-      if (item) {
-        setEditingItemId(id);
-        setItemName(item.name);
-        setItemDesc(item.description);
-      }
-    } else {
-      setEditingItemId(null);
-      setItemName('');
-      setItemDesc('');
-    }
-    setIsItemModalOpen(true);
-  };
-
-  const saveItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!itemName.trim() || !itemDesc.trim()) return;
-    if (editingItemId) {
-      editItem(editingItemId, itemName.trim(), itemDesc.trim());
-    } else {
-      addItem(itemName.trim(), itemDesc.trim());
-    }
-    setIsItemModalOpen(false);
-  };
-
-  const addSocket = () => {
-    setEntrySockets(prev => [...prev, { id: `socket_${Date.now()}`, charId: null, itemIds: [] }]);
-  };
-
-  const removeSocket = (socketId: string) => {
-    setEntrySockets(prev => prev.filter(s => s.id !== socketId));
-  };
-
-  const openSocketCharModal = (socketId: string) => {
-    setActiveSocketId(socketId);
-    setIsCharSelectionModalOpen(true);
+  const startBattle = async () => {
+    const validSockets = entrySockets.filter(s => s.charId);
+    if (validSockets.length < 2 || !user) return;
+    setArenaTab('result');
+    try {
+      const participantPayload = validSockets.map(s => `${s.charId}::${s.itemIds.join(',')}`);
+      const { data, error } = await supabase.from('battle_queue').insert({
+        user_id: user.id, participant_ids: participantPayload, p1_id: validSockets[0].charId, p2_id: validSockets[1].charId,
+        system_prompt: settings.systemPrompt, model: settings.model, temperature: settings.temperature, provider: settings.provider,
+        status: 'pending', created_at: Date.now()
+      }).select('id').single();
+      if (error) throw error;
+      fetch('/api/queue/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queueId: data.id, userId: user.id }) });
+    } catch (err: any) { alert(err.message); }
   };
 
   const selectSocketChar = (charId: string) => {
     if (activeSocketId) {
       setEntrySockets(prev => {
         const newSockets = prev.map(s => s.id === activeSocketId ? { ...s, charId } : s);
-        // Automatically add a new empty socket if we are filling the last available slot
-        if (newSockets[newSockets.length - 1].charId !== null) {
-          return [...newSockets, { id: `socket_${Date.now()}`, charId: null, itemIds: [] }];
-        }
+        if (newSockets[newSockets.length - 1].charId !== null) return [...newSockets, { id: `socket_${Date.now()}`, charId: null, itemIds: [] }];
         return newSockets;
       });
     }
-    setIsCharSelectionModalOpen(false);
-    setActiveSocketId(null);
-  };
-
-  const openSocketItemModal = (socketId: string) => {
-    setActiveSocketForItems(socketId);
-    setIsItemSelectionModalOpen(true);
+    setIsCharSelectionModalOpen(false); setActiveSocketId(null);
   };
 
   const toggleSocketItem = (itemId: string) => {
     if (activeSocketForItems) {
       setEntrySockets(prev => prev.map(s => {
-        if (s.id === activeSocketForItems) {
-          const newItemIds = s.itemIds.includes(itemId) 
-            ? s.itemIds.filter(id => id !== itemId) 
-            : [...s.itemIds, itemId];
-          return { ...s, itemIds: newItemIds };
-        }
+        if (s.id === activeSocketForItems) return { ...s, itemIds: s.itemIds.includes(itemId) ? s.itemIds.filter(id => id !== itemId) : [...s.itemIds, itemId] };
         return s;
       }));
     }
   };
 
-  const openSettings = () => {
-    setSystemPrompt(settings.systemPrompt);
-    setModel(settings.model);
-    setTemperature(settings.temperature);
-    setThinkingLevel(settings.thinkingLevel || 'HIGH');
-    setProvider(settings.provider || 'google');
-    setIsSettingsOpen(true);
+  if (!charLoaded || !itemsLoaded || !settingsLoaded || !isAuthLoaded) return <div style={{ padding: '2rem' }}>Loading...</div>;
+
+  const getSliderTransform = () => {
+    if (globalTab === 'arena') return 'translateX(0%)';
+    if (globalTab === 'history') return 'translateX(-33.333%)';
+    if (globalTab === 'queue') return 'translateX(-66.666%)';
+    return 'translateX(0%)';
   };
-
-  const saveSettingsForm = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
-    setIsSettingsOpen(false);
-  };
-
-  const handleLoadPreset = (presetId: string) => {
-    const p = presets.find(x => x.id === presetId);
-    if (p) {
-      setSystemPrompt(p.systemPrompt);
-      setModel(p.model);
-      setTemperature(p.temperature);
-      setShowThinking(p.showThinking);
-      setThinkingBudget(p.thinkingBudget);
-      setThinkingLevel(p.thinkingLevel);
-      setProvider(p.provider);
-    }
-  };
-
-  const handleSaveNewPreset = () => {
-    if (!newPresetName.trim()) return;
-    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
-    setNewPresetName('');
-  };
-
-  const startBattle = async () => {
-    const validSockets = entrySockets.filter(s => s.charId);
-    if (validSockets.length < 2 || !user) {
-      setNotification({ message: '最低2つのキャラクターをセットしてください', type: 'error' });
-      return;
-    }
-    // Switch to result tab immediately
-    setActiveTab('result');
-
-    try {
-      const participantPayload = validSockets.map(s => `${s.charId}::${s.itemIds.join(',')}`);
-
-      // Fallback variables for backward compatibility if needed by old DB schema constraints
-      const p1Id = validSockets[0]?.charId || null;
-      const p2Id = validSockets[1]?.charId || null;
-
-      const { data, error } = await supabase.from('battle_queue').insert({
-        user_id: user.id,
-        participant_ids: participantPayload, // N-way support with items packed
-        p1_id: p1Id, // Fallback for 2-way logic
-        p2_id: p2Id,
-        system_prompt: settings.systemPrompt, // Always use truth from settings
-        model: settings.model,
-        temperature: settings.temperature,
-        provider: settings.provider,
-        status: 'pending',
-        created_at: Date.now()
-      }).select('id').single();
-      if (error) throw error;
-      fetch('/api/queue/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queueId: data.id, userId: user.id })
-      }).catch(err => console.error('[Queue Trigger Error]', err));
-    } catch (err: any) {
-      alert('対戦の開始に失敗しました: ' + err.message);
-    }
-  };
-
-  if (!charLoaded || !itemsLoaded || !settingsLoaded || !isAuthLoaded) return <div>Loading...</div>;
 
   return (
     <div className={styles.container}>
-
-
-
-
-      <header className={styles.header}>
-        <h1 className={styles.title}>Welcome to the Arena</h1>
-        <div>
-          <Button variant="secondary" onClick={openSettings}>Settings (Presets)</Button>
-        </div>
-      </header>
-      
-      {/* Notification Toast */}
-      {notification && (
-        <div style={{
-          position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
-          padding: '1rem 2rem', borderRadius: '12px', zIndex: 11000,
-          background: notification.type === 'error' ? '#dc2626' : notification.type === 'success' ? '#16a34a' : '#2563eb',
-          color: 'white', fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-          animation: 'slideDown 0.3s ease-out'
-        }}>
-          {notification.message}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-        <button 
-          onClick={() => setActiveTab('entry')}
-          style={{ 
-            padding: '0.5rem 1.5rem', background: 'transparent', border: 'none', 
-            color: activeTab === 'entry' ? '#2563eb' : 'var(--foreground)',
-            borderBottom: activeTab === 'entry' ? '2px solid #2563eb' : 'none',
-            cursor: 'pointer', fontSize: '1.1rem', fontWeight: activeTab === 'entry' ? 'bold' : 'normal'
-          }}
-        >
-          Entry
-        </button>
-        <button 
-          onClick={() => setActiveTab('result')}
-          style={{ 
-            padding: '0.5rem 1.5rem', background: 'transparent', border: 'none', 
-            color: activeTab === 'result' ? '#2563eb' : 'var(--foreground)',
-            borderBottom: activeTab === 'result' ? '2px solid #2563eb' : 'none',
-            cursor: 'pointer', fontSize: '1.1rem', fontWeight: activeTab === 'result' ? 'bold' : 'normal'
-          }}
-        >
-          Result
-        </button>
+      {/* Navigation Header */}
+      <div className={styles.tabNav}>
+        <div className={`${styles.tabNavItem} ${globalTab === 'arena' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('arena')}>ARENA</div>
+        <div className={`${styles.tabNavItem} ${globalTab === 'history' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('history')}>HISTORY</div>
+        <div className={`${styles.tabNavItem} ${globalTab === 'queue' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('queue')}>QUEUE</div>
       </div>
 
-      {activeTab === 'entry' ? (
-        <>
-          {/* Entry Sockets Section */}
-          <div className={styles.rosterSection} style={{ marginBottom: '3rem', padding: '2rem', background: 'rgba(37, 99, 235, 0.05)', borderRadius: '16px', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
-            <div className={styles.rosterHeader}>
-              <h2 style={{ color: '#60a5fa' }}>Battle Entry</h2>
-              {/* Removed manual Add Socket button as it is now automatic */}
+      <div className={styles.viewport}>
+        <div className={styles.slider} style={{ transform: getSliderTransform() }}>
+          
+          {/* TAB 1: ARENA */}
+          <div className={styles.tabContent}>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+              <Button variant={arenaTab === 'entry' ? 'primary' : 'secondary'} onClick={() => setArenaTab('entry')}>Battle Entry</Button>
+              <Button variant={arenaTab === 'result' ? 'primary' : 'secondary'} onClick={() => setArenaTab('result')}>Latest Result</Button>
+              <div style={{ flexGrow: 1 }} />
+              <Button variant="secondary" onClick={() => setIsSettingsOpen(true)}>Settings</Button>
             </div>
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'stretch' }}>
-              {entrySockets.map((s, idx) => {
-                const char = s.charId ? characters.find(c => c.id === s.charId) : null;
-                return (
-                  <div key={s.id} className={styles.characterCard} style={{ flex: '1 1 300px', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', border: char ? `2px solid ${char.color}` : '2px dashed rgba(255,255,255,0.1)', padding: '1.5rem', borderRadius: '16px', background: 'rgba(255, 255, 255, 0.03)' }}>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--foreground)', opacity: 0.8 }}>Socket {idx + 1}</div>
-                    
-                    {/* Allow deleting any socket except if it's the very last empty one and we only have 1 */}
-                    {(entrySockets.length > 1 && (s.charId || idx < entrySockets.length - 1)) && (
-                      <button onClick={() => removeSocket(s.id)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
-                    )}
-                    
-                    <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
-                      {char ? (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}><span style={{ color: char.color, marginRight: '8px' }}>●</span>{char.name}</span>
-                          <Button variant="secondary" onClick={() => openSocketCharModal(s.id)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Change</Button>
+
+            {arenaTab === 'entry' ? (
+              <>
+                <div className={styles.rosterSection} style={{ marginBottom: '2rem', padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '16px' }}>
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    {entrySockets.map((s, idx) => {
+                      const char = s.charId ? characters.find(c => c.id === s.charId) : null;
+                      return (
+                        <div key={s.id} className={styles.characterCard} style={{ flex: '1 1 300px', border: char ? `2px solid ${char.color}` : '2px dashed #444', padding: '1.5rem', borderRadius: '12px', position: 'relative' }}>
+                          <div style={{ opacity: 0.5, marginBottom: '0.5rem' }}>Socket {idx + 1}</div>
+                          {char ? (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{char.name}</span>
+                              <Button variant="secondary" onClick={() => { setActiveSocketId(s.id); setIsCharSelectionModalOpen(true); }}>Change</Button>
+                            </div>
+                          ) : (
+                            <Button variant="secondary" onClick={() => { setActiveSocketId(s.id); setIsCharSelectionModalOpen(true); }} style={{ width: '100%', padding: '1rem' }}>+ Character</Button>
+                          )}
+                          <div style={{ marginTop: '1rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                               <span>Items ({s.itemIds.length})</span>
+                               <span style={{ color: 'var(--primary)', cursor: 'pointer' }} onClick={() => { setActiveSocketForItems(s.id); setIsItemSelectionModalOpen(true); }}>+ Add</span>
+                             </div>
+                             {s.itemIds.map(id => <div key={id} style={{ fontSize: '0.8rem' }}>• {items.find(i => i.id === id)?.name}</div>)}
+                          </div>
+                          {entrySockets.length > 2 && <button onClick={() => setEntrySockets(prev => prev.filter(x => x.id !== s.id))} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}>✕</button>}
                         </div>
-                      ) : (
-                        <Button variant="secondary" onClick={() => openSocketCharModal(s.id)} style={{ width: '100%', padding: '1rem', border: '1px dashed rgba(255,255,255,0.3)' }}>Select Character</Button>
-                      )}
-                    </div>
-
-                    <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', flexGrow: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>Equipped Items</span>
-                        {char && <Button variant="secondary" onClick={() => openSocketItemModal(s.id)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>+ Add Item</Button>}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {s.itemIds.length === 0 ? (
-                          <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', textAlign: 'center', padding: '1rem 0' }}>No items equipped.</div>
-                        ) : (
-                          s.itemIds.map(itemId => {
-                            const item = items.find(i => i.id === itemId);
-                            return item ? (
-                              <div key={itemId} style={{ fontSize: '0.9rem', padding: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>{item.name}</span>
-                                <button onClick={() => toggleSocketItem(itemId)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
-                              </div>
-                            ) : null;
-                          })
-                        )}
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'center' }}>
-              <Button onClick={startBattle} disabled={entrySockets.filter(s => s.charId).length < 2} style={{ padding: '1rem 3rem', fontSize: '1.2rem', boxShadow: '0 4px 20px rgba(37, 99, 235, 0.4)' }}>
-                Start Battle ({entrySockets.filter(s => s.charId).length} Fighters)
-              </Button>
-            </div>
-          </div>
-
-          {/* Characters Management Section */}
-      <div className={styles.rosterSection} style={{ marginBottom: '3rem' }}>
-        <div className={styles.rosterHeader}>
-          <h2>Character Management</h2>
-          <Button onClick={() => openCharModal()}>New Character</Button>
-        </div>
-        {characters.length === 0 ? (
-          <div className={styles.emptyState}>No characters. Create some to start.</div>
-        ) : (
-          <div className={styles.grid}>
-            {characters.map(char => {
-              const equippedItem = char.itemId ? items.find(i => i.id === char.itemId) : null;
-              return (
-                <Card key={char.id} className={styles.characterCard}>
-                  <div className={styles.characterName}>
-                    <span style={{ color: char.color, marginRight: '8px' }}>●</span>
-                    {char.name}
+                  <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+                    <Button onClick={startBattle} disabled={entrySockets.filter(s => s.charId).length < 2} style={{ padding: '1rem 4rem' }}>START BATTLE</Button>
                   </div>
-                  {equippedItem && <div className={styles.characterItem}>Permanent Item: {equippedItem.name}</div>}
-                  <div className={styles.characterSkills}>
-                    {char.skills.length > 80 ? `${char.skills.substring(0, 80)}...` : char.skills}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', alignSelf: 'flex-end' }}>
-                    <button className={styles.deleteBtn} style={{ color: 'var(--foreground)' }} onClick={(e) => { e.stopPropagation(); openCharModal(char.id); }}>Edit</button>
-                    <button className={styles.deleteBtn} onClick={(e) => {
-                      e.stopPropagation();
-                      deleteCharacter(char.id);
-                    }}>Delete</button>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Items Management Section */}
-      <div className={styles.rosterSection}>
-        <div className={styles.rosterHeader}>
-          <h2>Item Management</h2>
-          <Button onClick={() => openItemModal()}>New Item</Button>
-        </div>
-        {items.length === 0 ? (
-          <div className={styles.emptyState}>No items. Create some to equip on characters.</div>
-        ) : (
-          <div className={styles.grid}>
-            {items.map(it => (
-              <Card key={it.id} className={styles.characterCard}>
-                <div className={styles.characterName}>{it.name}</div>
-                <div className={styles.characterSkills}>{it.description}</div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', alignSelf: 'flex-end' }}>
-                  <button className={styles.deleteBtn} style={{ color: 'var(--foreground)' }} onClick={() => openItemModal(it.id)}>Edit</button>
-                  <button className={styles.deleteBtn} onClick={() => deleteItem(it.id)}>Delete</button>
                 </div>
-              </Card>
-            ))}
+
+                <div className={styles.rosterHeader}>
+                  <h2>Management</h2>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <Button variant="secondary" onClick={() => openCharModal()}>+ Char</Button>
+                    <Button variant="secondary" onClick={() => { setEditingItemId(null); setItemName(''); setItemDesc(''); setIsItemModalOpen(true); }}>+ Item</Button>
+                  </div>
+                </div>
+                <div className={styles.grid}>
+                  {characters.map(c => (
+                    <Card key={c.id} onClick={() => openCharModal(c.id)}>
+                      <div style={{ fontWeight: 'bold' }}><span style={{ color: c.color }}>●</span> {c.name}</div>
+                      <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{c.description.substring(0, 50)}...</div>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: '2rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', minHeight: '400px' }}>
+                <h2 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Battle Result</h2>
+                {battleLog ? <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.7' }}>{battleLog}</div> : <div style={{ opacity: 0.5 }}>No recent results. Start a battle to see the log here.</div>}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* TAB 2: HISTORY */}
+          <div className={styles.tabContent}>
+            <header className={styles.header}>
+              <h1 className={styles.title}>History</h1>
+              <Button variant="secondary" onClick={fetchHistory}>Refresh</Button>
+            </header>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {history.map(h => (
+                <Card key={h.id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <strong>{h.winner_name ? `Winner: ${h.winner_name}` : 'Draw / No Winner'}</strong>
+                    <small style={{ opacity: 0.5 }}>{new Date(h.created_at).toLocaleString()}</small>
+                  </div>
+                  <details style={{ marginTop: '0.5rem' }}>
+                    <summary style={{ cursor: 'pointer', color: 'var(--primary)' }}>View Log</summary>
+                    <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', marginTop: '0.5rem', maxHeight: '200px', overflowY: 'auto', fontSize: '0.9rem' }}>{h.log_text}</div>
+                  </details>
+                </Card>
+              ))}
+              {history.length === 0 && <div className={styles.emptyState}>No history yet.</div>}
+            </div>
+          </div>
+
+          {/* TAB 3: QUEUE */}
+          <div className={styles.tabContent}>
+            <header className={styles.header}>
+              <h1 className={styles.title}>Queue</h1>
+              <Button variant="secondary" onClick={() => processQueue(settings)} disabled={isProcessing}>{isProcessing ? 'Processing...' : 'Run Queue'}</Button>
+            </header>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={queue.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                {queue.map(q => {
+                  const names = q.participant_ids ? q.participant_ids.map((id: string) => characters.find(c => c.id === id.split('::')[0])?.name || '???') : ['???', '???'];
+                  return <SortableQueueItem key={q.id} q={q} fighterNames={names} deleteQueueItem={deleteQueueItem} />;
+                })}
+              </SortableContext>
+            </DndContext>
+            {queue.length === 0 && <div className={styles.emptyState}>Queue is empty.</div>}
+          </div>
+
+        </div>
       </div>
 
-      {/* Modals */}
+      {/* MODALS */}
       {isCharModalOpen && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
-            <h2 className={styles.modalTitle}>{editingCharId ? 'Edit Character' : 'Create New Character'}</h2>
+            <h2>{editingCharId ? 'Edit Character' : 'New Character'}</h2>
             <form onSubmit={saveChar}>
-              <div className={styles.formGroup}><label>Name</label><input type="text" value={charName} onChange={e => setCharName(e.target.value)} className={styles.input} required /></div>
-              <div className={styles.formGroup}><label>Description</label><textarea value={charSkills} onChange={e => setCharSkills(e.target.value)} className={styles.textarea} required /></div>
-              <div className={styles.formGroup}><label>Item</label><select value={charItemId} onChange={e => setCharItemId(e.target.value)} className={styles.input}><option value="">-- None --</option>{items.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}</select></div>
-              <div className={styles.formGroup}><label>Color</label><div style={{ display: 'flex', gap: '8px' }}>{COLORS.map(c => <div key={c} onClick={() => setCharColor(c)} style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: c, border: charColor === c ? '2px solid var(--foreground)' : '2px solid transparent', cursor: 'pointer' }} />)}</div></div>
-              <div className={styles.modalActions}><Button variant="secondary" type="button" onClick={() => setIsCharModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
-              {editingCharId && (
-                <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                  <h3>📜 History & Variants</h3>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                    <input type="text" value={newVariantName} onChange={e => setNewVariantName(e.target.value)} className={styles.input} placeholder="Variant name..." />
-                    <Button type="button" variant="secondary" onClick={handleSaveVariant} disabled={!newVariantName.trim()}>Save as Variant</Button>
-                  </div>
-                  <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                    {charVariants.map(v => (
-                      <div key={v.id} style={{ padding: '0.5rem', background: 'var(--border)', marginBottom: '4px' }}>
-                        <div><strong>{v.isBackup ? 'Auto-Backup' : v.name}</strong></div>
-                        <Button type="button" variant="secondary" onClick={() => loadVariant(v.skills)}>Restore</Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className={styles.formGroup}><label>Name</label><input className={styles.input} value={charName} onChange={e => setCharName(e.target.value)} required /></div>
+              <div className={styles.formGroup}><label>Description</label><textarea className={styles.textarea} value={charDescription} onChange={e => setCharDescription(e.target.value)} required /></div>
+              <div className={styles.formGroup}><label>Permanent Item</label><select className={styles.input} value={charItemId} onChange={e => setCharItemId(e.target.value)}><option value="">-- None --</option>{items.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}</select></div>
+              <div className={styles.modalActions}><Button variant="secondary" onClick={() => setIsCharModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
             </form>
           </div>
         </div>
@@ -506,164 +327,59 @@ export default function Home() {
       {isItemModalOpen && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
-            <h2 className={styles.modalTitle}>{editingItemId ? 'Edit Item' : 'Create New Item'}</h2>
-            <form onSubmit={saveItem}>
-              <div className={styles.formGroup}><label>Name</label><input type="text" value={itemName} onChange={e => setItemName(e.target.value)} className={styles.input} required /></div>
-              <div className={styles.formGroup}><label>Description</label><textarea value={itemDesc} onChange={e => setItemDesc(e.target.value)} className={styles.textarea} required /></div>
-              <div className={styles.modalActions}><Button variant="secondary" type="button" onClick={() => setIsItemModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
+            <h2>{editingItemId ? 'Edit Item' : 'New Item'}</h2>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (editingItemId) editItem(editingItemId, itemName, itemDesc);
+              else addItem(itemName, itemDesc);
+              setIsItemModalOpen(false);
+            }}>
+              <div className={styles.formGroup}><label>Name</label><input className={styles.input} value={itemName} onChange={e => setItemName(e.target.value)} required /></div>
+              <div className={styles.formGroup}><label>Description</label><textarea className={styles.textarea} value={itemDesc} onChange={e => setItemDesc(e.target.value)} required /></div>
+              <div className={styles.modalActions}><Button variant="secondary" onClick={() => setIsItemModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {isCharSelectionModalOpen && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 className={styles.modalTitle}>Select Character for Socket</h2>
-            <div className={styles.grid}>
-              {characters.map(char => (
-                <Card key={char.id} className={styles.characterCard} onClick={() => selectSocketChar(char.id)}>
-                  <div className={styles.characterName}>
-                    <span style={{ color: char.color, marginRight: '8px' }}>●</span>
-                    {char.name}
-                  </div>
-                  <div className={styles.characterSkills}>
-                    {char.skills.length > 80 ? `${char.skills.substring(0, 80)}...` : char.skills}
-                  </div>
-                </Card>
-              ))}
-            </div>
-            <div className={styles.modalActions} style={{ marginTop: '2rem' }}>
-              <Button variant="secondary" onClick={() => setIsCharSelectionModalOpen(false)}>Cancel</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isItemSelectionModalOpen && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 className={styles.modalTitle}>Select Item to Equip</h2>
-            <div className={styles.grid}>
-              {items.map(it => {
-                const isActive = activeSocketForItems ? entrySockets.find(s => s.id === activeSocketForItems)?.itemIds.includes(it.id) : false;
-                return (
-                  <Card key={it.id} className={styles.characterCard} selected={isActive} onClick={() => toggleSocketItem(it.id)}>
-                    <div className={styles.characterName}>{it.name}</div>
-                    <div className={styles.characterSkills}>{it.description}</div>
-                  </Card>
-                );
-              })}
-            </div>
-            <div className={styles.modalActions} style={{ marginTop: '2rem' }}>
-              <Button onClick={() => setIsItemSelectionModalOpen(false)}>Done</Button>
-            </div>
           </div>
         </div>
       )}
 
       {isSettingsOpen && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+          <div className={styles.modalContent}>
             <h2>Settings</h2>
-            <form onSubmit={saveSettingsForm}>
-              <div className={styles.formGroup}><label>API Provider</label><select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}><option value="google">Google AI</option><option value="lightning">Lightning AI</option></select></div>
-              <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
-              <div className={styles.formGroup}><label>Temperature</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
-              <div className={styles.formGroup}>
-                <label>📋 Load Saved Instruction (プリセット読み込み)</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <select 
-                    className={styles.input} 
-                    onChange={e => handleLoadPreset(e.target.value)}
-                    defaultValue=""
-                  >
-                    <option value="" disabled>-- Select Preset --</option>
-                    {presets.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Instruction: Battle (バトル用指示)</label>
-                <textarea 
-                  value={systemPrompt} 
-                  onChange={e => setSystemPrompt(e.target.value)} 
-                  className={styles.textarea}
-                  style={{ minHeight: '120px' }}
-                  required
-                />
-              </div>
-              <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
-              
-              <div className={styles.formGroup}>
-                <label>💾 Save current settings as New Instruction</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input 
-                    type="text" 
-                    value={newPresetName} 
-                    onChange={e => setNewPresetName(e.target.value)} 
-                    className={styles.input}
-                    placeholder="Instruction name (e.g. Comical Battle)"
-                  />
-                  <Button type="button" variant="secondary" onClick={handleSaveNewPreset} disabled={!newPresetName.trim()}>
-                    Save New
-                  </Button>
-                </div>
-              </div>
-
-              <div className={styles.modalActions}>
-                <Button variant="secondary" type="button" onClick={() => {
-                  setSystemPrompt('');
-                }}>Reset Prompts to Default</Button>
-                <div style={{ flexGrow: 1 }} />
-                <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
-                <Button type="submit">Apply Settings</Button>
-              </div>
-            </form>
+            <div className={styles.formGroup}><label>Model</label><input className={styles.input} value={model} onChange={e => setModel(e.target.value)} /></div>
+            <div className={styles.modalActions}><Button onClick={() => setIsSettingsOpen(false)}>Close</Button></div>
           </div>
         </div>
       )}
-        </>
-      ) : (
-        <div style={{ minHeight: '400px' }}>
-          {/* Results & Plugin UI Slots */}
-          {(battleLog) ? (
-            <div className={styles.battleControls} style={{ 
-              marginTop: '0', 
-              display: 'block', 
-              background: 'rgba(0,0,0,0.4)', 
-              position: 'relative',
-              border: '1px solid rgba(255,255,255,0.1)',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-            }}>
-              <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#2563eb' }}>
-                Battle Result
-              </h2>
-              
-              <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
-                {battleLog && (
-                  <div style={{ 
-                    whiteSpace: 'pre-wrap', 
-                    lineHeight: '1.8', 
-                    fontSize: '1.1rem',
-                    background: 'rgba(0,0,0,0.3)',
-                    padding: '2rem',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,0.05)'
-                  }}>
-                    {battleLog}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className={styles.emptyState}>No results to display. Start a battle in the Entry tab.</div>
-          )}
+
+      {isCharSelectionModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px' }}>
+            <h2>Select Character</h2>
+            <div className={styles.grid}>{characters.map(c => <Card key={c.id} onClick={() => selectSocketChar(c.id)}>{c.name}</Card>)}</div>
+            <Button style={{ marginTop: '1rem' }} onClick={() => setIsCharSelectionModalOpen(false)}>Cancel</Button>
+          </div>
         </div>
       )}
+
+      {isItemSelectionModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px' }}>
+            <h2>Select Items</h2>
+            <div className={styles.grid}>{items.map(it => <Card key={it.id} selected={entrySockets.find(s => s.id === activeSocketForItems)?.itemIds.includes(it.id)} onClick={() => toggleSocketItem(it.id)}>{it.name}</Card>)}</div>
+            <Button style={{ marginTop: '1rem' }} onClick={() => setIsItemSelectionModalOpen(false)}>Done</Button>
+          </div>
+        </div>
+      )}
+
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div style={{ padding: '2rem' }}>Loading Arena...</div>}>
+      <ArenaContent />
+    </Suspense>
   );
 }
