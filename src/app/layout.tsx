@@ -29,7 +29,6 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
         <body>
-          <NavBar />
           <NotificationContainer />
           <main>
             {children}
