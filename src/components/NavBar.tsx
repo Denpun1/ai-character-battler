@@ -22,9 +22,6 @@ export default function NavBar() {
           <Link href="/queue" className={`${styles.navLink} ${pathname === '/queue' ? styles.active : ''}`}>
              ⏳ Queue
           </Link>
-          <Link href="/plugins" className={`${styles.navLink} ${pathname === '/plugins' ? styles.active : ''}`}>
-             🧩 Plugins
-          </Link>
         </div>
         <div className={styles.navAuth}>
           {isLoaded && isSignedIn && <UserButton />}

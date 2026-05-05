@@ -11,7 +11,6 @@ import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
-import { PluginManager } from '@/components/PluginManager';
 import styles from './page.module.css';
 
 const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777'];
@@ -66,10 +65,7 @@ export default function Home() {
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
   const [newPresetName, setNewPresetName] = useState('');
 
-  // Plugin System States
   const [battleLog, setBattleLog] = useState<string | null>(null);
-  const [pluginLogs, setPluginLogs] = useState<any[]>([]);
-  const [pluginButtons, setPluginButtons] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'entry' | 'result'>('entry');
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
 
@@ -88,9 +84,6 @@ export default function Home() {
           setBattleLog(result.log_text);
           setNotification({ message: '対戦が完了しました！', type: 'success' });
           setActiveTab('result'); // Auto-switch to result tab
-          window.dispatchEvent(new CustomEvent('plugin:run', { 
-            detail: { triggerType: 'end', contextOverride: { battleResult: result } } 
-          }));
         }
       }
       
@@ -98,30 +91,13 @@ export default function Home() {
       setTimeout(() => setNotification(null), 5000);
     };
 
-    const handlePluginUI = (e: any) => {
-      setPluginLogs(prev => [...prev, e.detail]);
-    };
-
-    const handlePluginButton = (e: any) => {
-      setPluginButtons(prev => [...prev, e.detail]);
-    };
-
     window.addEventListener('battleStatusChange', handleStatusChange);
-    window.addEventListener('plugin:ui:display', handlePluginUI);
-    window.addEventListener('plugin:ui:button', handlePluginButton);
     return () => {
       window.removeEventListener('battleStatusChange', handleStatusChange);
-      window.removeEventListener('plugin:ui:display', handlePluginUI);
-      window.removeEventListener('plugin:ui:button', handlePluginButton);
     };
   }, []);
 
-  const handlePluginButtonClick = (nodeId: string) => {
-    setPluginButtons(prev => prev.filter(b => b.nodeId !== nodeId));
-    window.dispatchEvent(new CustomEvent('plugin:run', { 
-      detail: { triggerType: 'node_click', startNodeId: nodeId } 
-    }));
-  };
+
 
   const openCharModal = async (id?: string) => {
     if (id) {
@@ -284,13 +260,8 @@ export default function Home() {
       setNotification({ message: '最低2つのキャラクターをセットしてください', type: 'error' });
       return;
     }
-    // Switch to result tab immediately so user can see pre-battle plugin logs
+    // Switch to result tab immediately
     setActiveTab('result');
-
-    // Fire 'start' trigger for plugins (so plugins set to run BEFORE battle will execute)
-    window.dispatchEvent(new CustomEvent('plugin:run', { 
-      detail: { triggerType: 'start' } 
-    }));
 
     try {
       const participantPayload = validSockets.map(s => `${s.charId}::${s.itemIds.join(',')}`);
@@ -326,50 +297,9 @@ export default function Home() {
 
   return (
     <div className={styles.container}>
-      <PluginManager 
-        battleResult={battleLog ? { log_text: battleLog } : undefined} 
-        systemPrompt={settings.systemPrompt}
-      />
 
-      {/* Global Plugin UI overlays (Absolute & Sidebar) */}
-      {pluginButtons.filter(b => b.posMode === 'absolute').map((btn, i) => (
-        <div key={`global-btn-${i}`} style={{ 
-          position: 'fixed', left: btn.posX, top: btn.posY, zIndex: 9999,
-          width: btn.width ? `${btn.width}px` : 'auto',
-          height: btn.height ? `${btn.height}px` : 'auto'
-        }}>
-          <Button onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ width: '100%', height: '100%' }}>
-            {btn.label}
-          </Button>
-        </div>
-      ))}
-      {pluginLogs.filter(log => log.posMode === 'absolute').map((log, i) => (
-        <div key={`global-log-${i}`} style={{ 
-          position: 'fixed', left: log.posX, top: log.posY, zIndex: 9999,
-          width: log.width ? `${log.width}px` : '300px',
-          height: log.height ? `${log.height}px` : 'auto',
-          pointerEvents: 'none'
-        }}>
-          <div style={log.mode === 'box' ? { 
-            padding: '1rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px',
-            width: '100%', height: '100%', overflow: 'auto'
-          } : { textShadow: '2px 2px 4px rgba(0,0,0,0.8)', width: '100%', height: '100%' }}>
-            {log.message}
-          </div>
-        </div>
-      ))}
-      {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').length > 0 && (
-        <div style={{ 
-          position: 'fixed', top: '100px', right: '2rem', width: '250px', 
-          display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100 
-        }}>
-          {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').map((log, i) => (
-            <div key={`global-sidebar-${i}`} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px', fontSize: '0.85rem' }}>
-              {log.message}
-            </div>
-          ))}
-        </div>
-      )}
+
+
 
       <header className={styles.header}>
         <h1 className={styles.title}>Welcome to the Arena</h1>
@@ -700,7 +630,7 @@ export default function Home() {
       ) : (
         <div style={{ minHeight: '400px' }}>
           {/* Results & Plugin UI Slots */}
-          {(battleLog || pluginLogs.length > 0 || pluginButtons.length > 0) ? (
+          {(battleLog) ? (
             <div className={styles.battleControls} style={{ 
               marginTop: '0', 
               display: 'block', 
@@ -709,61 +639,6 @@ export default function Home() {
               border: '1px solid rgba(255,255,255,0.1)',
               boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
             }}>
-              
-              {/* Slot-based Action Bar */}
-              {pluginButtons.filter(b => b.posMode !== 'absolute').length > 0 && (
-                <div style={{ 
-                  display: 'flex', 
-                  gap: '1rem', 
-                  marginBottom: '1.5rem', 
-                  padding: '1.2rem', 
-                  background: 'rgba(37, 99, 235, 0.2)', 
-                  borderRadius: '12px',
-                  border: '1px solid #2563eb',
-                  flexWrap: 'wrap',
-                  justifyContent: 'center',
-                  animation: 'slideUp 0.3s ease-out'
-                }}>
-                  {pluginButtons.filter(b => b.posMode !== 'absolute').map((btn, i) => (
-                    <Button key={i} onClick={() => handlePluginButtonClick(btn.nodeId)} style={{ minWidth: '150px' }}>
-                      {btn.label}
-                    </Button>
-                  ))}
-                </div>
-              )}
-
-              {/* Absolute-positioned Components (The "Pixel" Editor Result) */}
-              {pluginButtons.filter(b => b.posMode === 'absolute').map((btn, i) => (
-                <div key={`abs-btn-${i}`} style={{ 
-                  position: 'fixed', left: btn.posX, top: btn.posY, zIndex: 9999,
-                  width: btn.width ? `${btn.width}px` : 'auto',
-                  height: btn.height ? `${btn.height}px` : 'auto'
-                }}>
-                  <Button 
-                    onClick={() => handlePluginButtonClick(btn.nodeId)} 
-                    style={{ width: '100%', height: '100%' }}
-                  >
-                    {btn.label}
-                  </Button>
-                </div>
-              ))}
-
-              {pluginLogs.filter(log => log.posMode === 'absolute').map((log, i) => (
-                <div key={`abs-log-${i}`} style={{ 
-                  position: 'fixed', left: log.posX, top: log.posY, zIndex: 9999,
-                  width: log.width ? `${log.width}px` : '300px',
-                  height: log.height ? `${log.height}px` : 'auto',
-                  pointerEvents: 'none'
-                }}>
-                  <div style={log.mode === 'box' ? { 
-                    padding: '1rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px',
-                    width: '100%', height: '100%', overflow: 'auto'
-                  } : { textShadow: '2px 2px 4px rgba(0,0,0,0.8)', width: '100%', height: '100%' }}>
-                    {log.message}
-                  </div>
-                </div>
-              ))}
-
               <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#2563eb' }}>
                 Battle Result
               </h2>
@@ -782,41 +657,6 @@ export default function Home() {
                     {battleLog}
                   </div>
                 )}
-                
-                {pluginLogs.filter(log => log.slot === 'battle' && log.posMode !== 'absolute').map((log, i) => (
-                  <div key={i} style={log.mode === 'box' ? { 
-                    padding: '1.5rem', background: 'rgba(255, 255, 255, 0.05)', borderLeft: '4px solid #2563eb', borderRadius: '8px' 
-                  } : { whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
-                    {log.message}
-                  </div>
-                ))}
-              </div>
-
-              {/* Sidebar Slot & System Logs */}
-              <div style={{ 
-                position: 'fixed', top: '100px', right: '2rem', width: '280px', 
-                display: 'flex', flexDirection: 'column', gap: '0.75rem', zIndex: 100 
-              }}>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <Button variant="secondary" onClick={() => setPluginLogs([])} style={{ flex: 1, fontSize: '0.7rem', padding: '0.2rem' }}>Clear Logs</Button>
-                  <Button variant="secondary" onClick={() => {
-                    setPluginLogs([]);
-                    setPluginButtons([]);
-                    window.dispatchEvent(new CustomEvent('plugin:reset')); // Handled by PluginManager if needed
-                  }} style={{ flex: 1, fontSize: '0.7rem', padding: '0.2rem' }}>Reset Mod</Button>
-                </div>
-
-                {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').map((log, i) => (
-                  <div key={i} style={{ 
-                    padding: '0.75rem', background: 'rgba(0,0,0,0.85)', 
-                    borderLeft: `3px solid ${log.message.includes('[ERROR]') ? '#ef4444' : log.message.includes('[WARNING]') ? '#f59e0b' : '#2563eb'}`, 
-                    borderRadius: '4px', fontSize: '0.8rem', color: '#e5e7eb',
-                    animation: 'fadeIn 0.2s ease-out',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-                  }}>
-                    {log.message}
-                  </div>
-                ))}
               </div>
             </div>
           ) : (
