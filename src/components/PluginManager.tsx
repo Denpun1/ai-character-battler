@@ -38,7 +38,9 @@ export function PluginManager({
   // Listen for external triggers to run flow
   useEffect(() => {
     const handleRun = async (e: any) => {
-      // 常に最新のModデータを取得して実行する（エディタでの更新を即座に反映させるため）
+      const { triggerType, contextOverride, startNodeId } = e.detail;
+      
+      // 常に最新のModデータを取得して実行する
       let currentMod = activeMod;
       if (user) {
         try {
@@ -50,9 +52,7 @@ export function PluginManager({
             .limit(1);
           if (data && data.length > 0) {
             currentMod = data[0];
-            setActiveMod(currentMod); // ローカルステートも更新
-          } else {
-            currentMod = null;
+            setActiveMod(currentMod);
           }
         } catch (err) {
           console.error('[PluginManager] Failed to fetch latest mod', err);
@@ -63,16 +63,16 @@ export function PluginManager({
         console.log("No active mod found in PluginManager!");
         return;
       }
-      const { triggerType, contextOverride, startNodeId } = e.detail;
       
+      // 実行コンテキストの構築
       const context: PluginContext = {
         userId: user?.id || '',
-        battleResult: battleResult || contextOverride?.battleResult,
+        battleResult: contextOverride?.battleResult || battleResult,
         systemPrompt: systemPrompt || '',
-        variables: variables // 現在の変数を渡す
+        variables: variables // 既存の変数を引き継ぐ
       };
 
-      // 実行後の変数を取得して永続化する
+      // 実行
       await runPluginFlow(
         currentMod.flow_data.nodes, 
         currentMod.flow_data.edges, 
@@ -81,14 +81,23 @@ export function PluginManager({
         startNodeId
       );
       
-      // 注意: runPluginFlow内でcontext.variablesを直接変更しているため、
-      // 参照渡しにより自動的に更新されますが、Reactの再レンダリングを促すためにステートも更新
+      // 実行後の変数をステートに保存して永続化
       setVariables({ ...context.variables });
     };
 
     window.addEventListener('plugin:run', handleRun);
-    return () => window.removeEventListener('plugin:run', handleRun);
-  }, [activeMod, user, battleResult]);
+    
+    const handleReset = () => {
+      setVariables({});
+      console.log("[PluginManager] Variables reset.");
+    };
+    window.addEventListener('plugin:reset', handleReset);
+
+    return () => {
+      window.removeEventListener('plugin:run', handleRun);
+      window.removeEventListener('plugin:reset', handleReset);
+    };
+  }, [activeMod, user, battleResult, variables, systemPrompt]);
 
   return null; // Logic only component
 }

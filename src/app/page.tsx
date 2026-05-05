@@ -792,19 +792,32 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Sidebar Slot */}
-              {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').length > 0 && (
-                <div style={{ 
-                  position: 'fixed', top: '100px', right: '2rem', width: '250px', 
-                  display: 'flex', flexDirection: 'column', gap: '0.5rem', zIndex: 100 
-                }}>
-                  {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').map((log, i) => (
-                    <div key={i} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.8)', border: '1px solid #2563eb', borderRadius: '8px', fontSize: '0.85rem' }}>
-                      {log.message}
-                    </div>
-                  ))}
+              {/* Sidebar Slot & System Logs */}
+              <div style={{ 
+                position: 'fixed', top: '100px', right: '2rem', width: '280px', 
+                display: 'flex', flexDirection: 'column', gap: '0.75rem', zIndex: 100 
+              }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <Button variant="secondary" onClick={() => setPluginLogs([])} style={{ flex: 1, fontSize: '0.7rem', padding: '0.2rem' }}>Clear Logs</Button>
+                  <Button variant="secondary" onClick={() => {
+                    setPluginLogs([]);
+                    setPluginButtons([]);
+                    window.dispatchEvent(new CustomEvent('plugin:reset')); // Handled by PluginManager if needed
+                  }} style={{ flex: 1, fontSize: '0.7rem', padding: '0.2rem' }}>Reset Mod</Button>
                 </div>
-              )}
+
+                {pluginLogs.filter(log => log.slot === 'sidebar' && log.posMode !== 'absolute').map((log, i) => (
+                  <div key={i} style={{ 
+                    padding: '0.75rem', background: 'rgba(0,0,0,0.85)', 
+                    borderLeft: `3px solid ${log.message.includes('[ERROR]') ? '#ef4444' : log.message.includes('[WARNING]') ? '#f59e0b' : '#2563eb'}`, 
+                    borderRadius: '4px', fontSize: '0.8rem', color: '#e5e7eb',
+                    animation: 'fadeIn 0.2s ease-out',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                  }}>
+                    {log.message}
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className={styles.emptyState}>No results to display. Start a battle in the Entry tab.</div>
