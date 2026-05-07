@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
           } else if (p.itemDetails) {
             itemsStr = `\n装備アイテム:\n・${p.itemDetails.name} - ${p.itemDetails.description}`;
           }
-          playerInfo += `\n# キャラクター: ${p.name}\n${p.description}${itemsStr}\n`;
+          playerInfo += `\n名前: ${p.name}\n説明: ${p.description}${itemsStr}\n`;
         });
       }
 
@@ -63,14 +63,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const finalPrompt = `
-${systemPrompt}
-
-### 参加者データ
-${playerInfo}
-
-対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
-`.trim();
+      const finalPrompt = `${systemPrompt}\n\n${playerInfo}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
 
       const responseStream = await ai.models.generateContentStream({
         model: selectedModel,
@@ -121,7 +114,7 @@ ${playerInfo}
           } else if (p.itemDetails) {
             itemsStr = `\n装備アイテム:\n・${p.itemDetails.name} - ${p.itemDetails.description}`;
           }
-          playerInfo += `\n# キャラクター: ${p.name}\n${p.description}${itemsStr}\n`;
+          playerInfo += `\n名前: ${p.name}\n説明: ${p.description}${itemsStr}\n`;
         });
       }
 

@@ -70,14 +70,7 @@ export async function POST(req: NextRequest) {
           if (!apiKey) throw new Error("GEMINI_API_KEY missing.");
           
           const genAI = new GoogleGenAI({ apiKey });
-          const finalPrompt = `
-${queueItem.system_prompt}
-
-### 参加者データ
-${buildPrompt(queueItem, fighters)}
-
-対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
-`.trim();
+          const finalPrompt = `${queueItem.system_prompt}\n\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
 
           const stream = await genAI.models.generateContentStream({
             model: modelName,
@@ -145,7 +138,7 @@ function buildPrompt(queueItem: any, fighters: any[]) {
     const itemsStr = f.equippedItems?.length > 0 
       ? `\n装備アイテム:\n` + f.equippedItems.map((item: any) => `・${item.name} - ${item.description}`).join('\n')
       : '';
-    p += `\n# キャラクター: ${f.name}\n${f.description}${itemsStr}\n`;
+    p += `\n名前: ${f.name}\n説明: ${f.description}${itemsStr}\n`;
   });
   return p.trim();
 }

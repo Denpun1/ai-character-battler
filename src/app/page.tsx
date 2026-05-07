@@ -166,18 +166,11 @@ function ArenaContent() {
         if (socketItems.length > 0) {
           itemsStr = `\n装備アイテム:\n` + socketItems.map((item: any) => `・${item.name} - ${item.description}`).join('\n');
         }
-        playerInfo += `\n# キャラクター: ${char.name}\n${char.description}${itemsStr}\n`;
+        playerInfo += `\n名前: ${char.name}\n説明: ${char.description}${itemsStr}\n`;
       }
     });
 
-    const finalPrompt = `
-${systemPrompt}
-
-### 参加者データ
-${playerInfo}
-
-対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
-`.trim();
+    const finalPrompt = `${systemPrompt}\n\n${playerInfo}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
     
     const params = {
       provider,
