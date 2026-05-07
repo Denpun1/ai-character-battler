@@ -9,7 +9,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useBattleRealtime } from '@/hooks/useBattleRealtime';
 import { useHistory } from '@/hooks/useHistory';
 import { useQueue } from '@/hooks/useQueue';
-import { useUser } from '@clerk/nextjs';
+import { useUser, UserButton, SignInButton } from '@clerk/nextjs';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
@@ -36,11 +36,10 @@ const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777'
 function ArenaContent() {
   const { characters, isLoaded: charLoaded, addCharacter, editCharacter, deleteCharacter, fetchVariants, saveVariant } = useCharacters();
   const { items, isLoaded: itemsLoaded, addItem, editItem, deleteItem } = useItems();
-  const { settings, presets, isLoaded: settingsLoaded, saveSettings, createPreset } = useSettings();
-  const { isLoaded: isAuthLoaded, user } = useUser();
+  const { settings, presets, isLoaded: settingsLoaded, saveSettings, createPreset, deletePreset } = useSettings();
+  const { isLoaded: isAuthLoaded, user, isSignedIn } = useUser();
   const searchParams = useSearchParams();
   
-  // Custom Hooks for History & Queue
   const { history, fetchHistory } = useHistory(user?.id);
   const { queue, isProcessing, handleDragEnd, deleteQueueItem, processQueue } = useQueue(user?.id, characters, items);
 
@@ -83,17 +82,16 @@ function ArenaContent() {
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedHistory, setSelectedHistory] = useState<any | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewPrompt, setPreviewPrompt] = useState('');
 
-  // DnD Sensors
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useBattleRealtime();
 
   useEffect(() => {
     const t = searchParams.get('tab');
-    if (t === 'history' || t === 'queue' || t === 'arena') {
-      setGlobalTab(t as any);
-    }
+    if (t === 'history' || t === 'queue' || t === 'arena') setGlobalTab(t as any);
   }, [searchParams]);
 
   useEffect(() => {
@@ -146,14 +144,36 @@ function ArenaContent() {
   };
 
   const openSettings = () => {
-    setSystemPrompt(settings.systemPrompt);
-    setModel(settings.model);
-    setTemperature(settings.temperature);
-    setShowThinking(settings.showThinking);
-    setThinkingBudget(settings.thinkingBudget);
-    setThinkingLevel(settings.thinkingLevel || 'HIGH');
-    setProvider(settings.provider || 'google');
-    setIsSettingsOpen(true);
+    setSystemPrompt(settings.systemPrompt); setModel(settings.model); setTemperature(settings.temperature);
+    setShowThinking(settings.showThinking); setThinkingBudget(settings.thinkingBudget); setThinkingLevel(settings.thinkingLevel || 'HIGH');
+    setProvider(settings.provider || 'google'); setIsSettingsOpen(true);
+  };
+
+  const handlePreviewPrompt = () => {
+    const validSockets = entrySockets.filter(s => s.charId);
+    if (validSockets.length < 1) {
+      alert("At least one character must be selected to preview.");
+      return;
+    }
+    
+    let fullPrompt = `System Instruction:\n${systemPrompt}\n\n`;
+    fullPrompt += "--- Battle Start ---\n";
+    validSockets.forEach((s, idx) => {
+      const char = characters.find(c => c.id === s.charId);
+      if (char) {
+        fullPrompt += `\nParticipant ${idx + 1}: ${char.name}\nDescription: ${char.description}\n`;
+        const socketItems = s.itemIds.map(id => items.find(i => i.id === id)).filter(Boolean);
+        if (socketItems.length > 0) {
+          fullPrompt += `Equipped Items: ${socketItems.map(i => i?.name).join(', ')}\n`;
+          socketItems.forEach(i => {
+            fullPrompt += `- ${i?.name}: ${i?.description}\n`;
+          });
+        }
+      }
+    });
+    
+    setPreviewPrompt(fullPrompt);
+    setIsPreviewModalOpen(true);
   };
 
   const selectSocketChar = (charId: string) => {
@@ -215,6 +235,13 @@ function ArenaContent() {
               <h2 style={{ margin: 0 }}>Battle Arena</h2>
               <div style={{ flexGrow: 1 }} />
               <Button variant="secondary" onClick={openSettings}>Settings</Button>
+              <div style={{ marginLeft: '1rem' }}>
+                {isSignedIn ? <UserButton afterSignOutUrl="/" /> : (
+                  <SignInButton mode="modal">
+                    <button style={{ background: '#2563eb', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Login</button>
+                  </SignInButton>
+                )}
+              </div>
             </div>
 
             <div className={styles.rosterSection} style={{ marginBottom: '2rem', padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '16px' }}>
@@ -321,6 +348,69 @@ function ArenaContent() {
         </div>
       )}
 
+      {isSettingsOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ marginBottom: '1.5rem' }}>Settings & System Instructions</h2>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+              setIsSettingsOpen(false);
+            }}>
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Current Preset</h3>
+                <div className={styles.formGroup}><label>API Provider</label><select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}><option value="google">Google AI</option><option value="lightning">Lightning AI</option></select></div>
+                <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
+                <div className={styles.formGroup}><label>Temperature ({temperature})</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
+                <div className={styles.formGroup}><label>Instruction (System Prompt)</label><textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '120px' }} required /></div>
+              </div>
+
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Manage Presets</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                  {presets.length === 0 ? <p style={{ opacity: 0.5, fontSize: '0.9rem' }}>No presets saved.</p> : presets.map(p => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.6rem 1rem', borderRadius: '8px' }}>
+                      <span style={{ fontWeight: 'bold', cursor: 'pointer', flexGrow: 1 }} onClick={() => {
+                        setSystemPrompt(p.systemPrompt); setModel(p.model); setTemperature(p.temperature); setProvider(p.provider);
+                      }}>{p.name}</span>
+                      <button type="button" onClick={() => deletePreset(p.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.5rem' }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input type="text" value={newPresetName} onChange={e => setNewPresetName(e.target.value)} className={styles.input} placeholder="New preset name..." />
+                  <Button type="button" variant="secondary" onClick={() => { if(!newPresetName.trim()) return; createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider }); setNewPresetName(''); }} disabled={!newPresetName.trim()}>Save Current</Button>
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(255, 99, 71, 0.05)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(255, 99, 71, 0.2)' }}>
+                <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: '#ff6347' }}>Dev Tools</h3>
+                <Button type="button" variant="secondary" onClick={handlePreviewPrompt} style={{ width: '100%' }}>Preview Request Prompt (AI送信内容の確認)</Button>
+              </div>
+
+              <div className={styles.modalActions}>
+                <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
+                <Button type="submit">Apply Settings</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isPreviewModalOpen && (
+        <div className={styles.modalOverlay} onClick={() => setIsPreviewModalOpen(false)}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px', width: '90%', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ marginBottom: '1rem' }}>Request Prompt Preview</h2>
+            <div style={{ whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'monospace', border: '1px solid #444' }}>
+              {previewPrompt}
+            </div>
+            <div className={styles.modalActions}>
+              <Button onClick={() => setIsPreviewModalOpen(false)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isCharModalOpen && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
@@ -348,58 +438,6 @@ function ArenaContent() {
               <div className={styles.formGroup}><label>Name</label><input className={styles.input} value={itemName} onChange={e => setItemName(e.target.value)} required /></div>
               <div className={styles.formGroup}><label>Description</label><textarea className={styles.textarea} value={itemDesc} onChange={e => setItemDesc(e.target.value)} required /></div>
               <div className={styles.modalActions}><Button variant="secondary" onClick={() => setIsItemModalOpen(false)}>Cancel</Button><Button type="submit">Save</Button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isSettingsOpen && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
-            <h2>Settings</h2>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
-              setIsSettingsOpen(false);
-            }}>
-              <div className={styles.formGroup}><label>API Provider</label><select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}><option value="google">Google AI</option><option value="lightning">Lightning AI</option></select></div>
-              <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
-              <div className={styles.formGroup}><label>Temperature</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
-              <div className={styles.formGroup}>
-                <label>📋 Load Saved Instruction</label>
-                <select className={styles.input} onChange={e => {
-                  const p = presets.find(x => x.id === e.target.value);
-                  if (p) {
-                    setSystemPrompt(p.systemPrompt); setModel(p.model); setTemperature(p.temperature);
-                    setShowThinking(p.showThinking); setThinkingBudget(p.thinkingBudget); setThinkingLevel(p.thinkingLevel); setProvider(p.provider);
-                  }
-                }} defaultValue="">
-                  <option value="" disabled>-- Select Preset --</option>
-                  {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div className={styles.formGroup}>
-                <label>Instruction: Battle</label>
-                <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '120px' }} required />
-              </div>
-              <div style={{ borderTop: '1px solid var(--border)', margin: '1.5rem 0' }} />
-              <div className={styles.formGroup}>
-                <label>💾 Save current settings as New Instruction</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input type="text" value={newPresetName} onChange={e => setNewPresetName(e.target.value)} className={styles.input} placeholder="Instruction name" />
-                  <Button type="button" variant="secondary" onClick={() => {
-                    if (!newPresetName.trim()) return;
-                    createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
-                    setNewPresetName('');
-                  }} disabled={!newPresetName.trim()}>Save New</Button>
-                </div>
-              </div>
-              <div className={styles.modalActions}>
-                <Button variant="secondary" type="button" onClick={() => setSystemPrompt('')}>Reset Prompts</Button>
-                <div style={{ flexGrow: 1 }} />
-                <Button variant="secondary" type="button" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
-                <Button type="submit">Apply Settings</Button>
-              </div>
             </form>
           </div>
         </div>
