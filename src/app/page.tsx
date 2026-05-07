@@ -236,7 +236,7 @@ function ArenaContent() {
               <div style={{ flexGrow: 1 }} />
               <Button variant="secondary" onClick={openSettings}>Settings</Button>
               <div style={{ marginLeft: '1rem' }}>
-                {isSignedIn ? <UserButton afterSignOutUrl="/" /> : (
+                {isSignedIn ? <UserButton /> : (
                   <SignInButton mode="modal">
                     <button style={{ background: '#2563eb', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Login</button>
                   </SignInButton>
