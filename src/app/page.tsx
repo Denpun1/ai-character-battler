@@ -156,23 +156,42 @@ function ArenaContent() {
       return;
     }
     
-    let fullPrompt = `System Instruction:\n${systemPrompt}\n\n`;
-    fullPrompt += "--- Battle Start ---\n";
-    validSockets.forEach((s, idx) => {
+    // Construct Player Info exactly like backend
+    let playerInfo = '';
+    validSockets.forEach((s) => {
       const char = characters.find(c => c.id === s.charId);
       if (char) {
-        fullPrompt += `\nParticipant ${idx + 1}: ${char.name}\nDescription: ${char.description}\n`;
         const socketItems = s.itemIds.map(id => items.find(i => i.id === id)).filter(Boolean);
+        let itemsStr = '';
         if (socketItems.length > 0) {
-          fullPrompt += `Equipped Items: ${socketItems.map(i => i?.name).join(', ')}\n`;
-          socketItems.forEach(i => {
-            fullPrompt += `- ${i?.name}: ${i?.description}\n`;
-          });
+          itemsStr = `\n装備アイテム:\n` + socketItems.map((item: any) => `・${item.name} - ${item.description}`).join('\n');
         }
+        playerInfo += `\n# キャラクター: ${char.name}\n${char.description}${itemsStr}\n`;
       }
     });
+
+    const finalPrompt = `
+${systemPrompt}
+
+### 参加者データ
+${playerInfo}
+
+上記のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力し、対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
+`.trim();
     
-    setPreviewPrompt(fullPrompt);
+    const fullPayload = {
+      provider,
+      model,
+      temperature,
+      thinking_config: showThinking ? { 
+        include_thoughts: true, 
+        thinking_budget: thinkingBudget, 
+        thinking_level: thinkingLevel 
+      } : 'disabled',
+      prompt: finalPrompt
+    };
+    
+    setPreviewPrompt(JSON.stringify(fullPayload, null, 2));
     setIsPreviewModalOpen(true);
   };
 
