@@ -176,10 +176,10 @@ ${systemPrompt}
 ### 参加者データ
 ${playerInfo}
 
-上記のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力し、対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
+対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
 `.trim();
     
-    const fullPayload = {
+    const params = {
       provider,
       model,
       temperature,
@@ -187,11 +187,10 @@ ${playerInfo}
         include_thoughts: true, 
         thinking_budget: thinkingBudget, 
         thinking_level: thinkingLevel 
-      } : 'disabled',
-      prompt: finalPrompt
+      } : 'disabled'
     };
     
-    setPreviewPrompt(JSON.stringify(fullPayload, null, 2));
+    setPreviewPrompt(`[JSON Parameters]\n${JSON.stringify(params, null, 2)}\n\n[Final Prompt Content]\n${finalPrompt}`);
     setIsPreviewModalOpen(true);
   };
 

@@ -76,7 +76,7 @@ ${queueItem.system_prompt}
 ### 参加者データ
 ${buildPrompt(queueItem, fighters)}
 
-上記のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力し、対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
+対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。
 `.trim();
 
           const stream = await genAI.models.generateContentStream({
