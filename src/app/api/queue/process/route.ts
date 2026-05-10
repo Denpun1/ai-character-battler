@@ -72,13 +72,27 @@ export async function POST(req: NextRequest) {
           const genAI = new GoogleGenAI({ apiKey });
           const finalPrompt = `${queueItem.system_prompt}\n\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
 
+          const isGemma4 = modelName.toLowerCase().includes('gemma-4');
+          const isGemini3 = modelName.toLowerCase().includes('gemini-3');
+          const isGemini2 = modelName.toLowerCase().includes('gemini-2');
+
+          const config: any = { 
+            temperature: queueItem.temperature || 0.7,
+            maxOutputTokens: 8192
+          };
+
+          if (queueItem.show_thinking) {
+            if (isGemini2 && queueItem.thinking_budget > 0) {
+              config.thinking_config = { include_thoughts: true, thinking_budget: queueItem.thinking_budget };
+            } else if (isGemma4 || isGemini3) {
+              config.thinking_config = { include_thoughts: true, thinking_level: queueItem.thinking_level || 'high' };
+            }
+          }
+
           const stream = await genAI.models.generateContentStream({
             model: modelName,
             contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
-            config: { 
-              temperature: queueItem.temperature || 0.7,
-              maxOutputTokens: 8192
-            }
+            config
           });
 
           for await (const chunk of stream) {

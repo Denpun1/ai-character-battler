@@ -10,7 +10,7 @@ export interface Settings {
   temperature: number;
   showThinking: boolean;
   thinkingBudget: number;
-  thinkingLevel: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
+  thinkingLevel: 'minimal' | 'low' | 'medium' | 'high';
   provider: 'google' | 'lightning';
 }
 
@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS: Settings = {
   temperature: 0.7,
   showThinking: false,
   thinkingBudget: 0,
-  thinkingLevel: 'HIGH',
+  thinkingLevel: 'high',
   provider: 'google',
 };
 
@@ -52,7 +52,7 @@ export function useSettings() {
         temperature: d.temperature,
         showThinking: d.show_thinking,
         thinkingBudget: d.thinking_budget,
-        thinkingLevel: d.thinking_level || 'HIGH',
+        thinkingLevel: (d.thinking_level || 'high').toLowerCase() as any,
         provider: d.provider,
         jsonMode: d.json_mode ?? true
       })));

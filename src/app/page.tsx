@@ -77,7 +77,7 @@ function ArenaContent() {
   const [temperature, setTemperature] = useState(0.7);
   const [showThinking, setShowThinking] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState(0);
-  const [thinkingLevel, setThinkingLevel] = useState<'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH'>('HIGH');
+  const [thinkingLevel, setThinkingLevel] = useState<'minimal' | 'low' | 'medium' | 'high'>('high');
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedHistory, setSelectedHistory] = useState<any | null>(null);
@@ -385,10 +385,10 @@ function ArenaContent() {
                       <div className={styles.formGroup}>
                         <label>Thinking Level (Depth)</label>
                         <select value={thinkingLevel} onChange={e => setThinkingLevel(e.target.value as any)} className={styles.input}>
-                          <option value="MINIMAL">Minimal (Speed focus)</option>
-                          <option value="LOW">Low</option>
-                          <option value="MEDIUM">Medium</option>
-                          <option value="HIGH">High (Precision focus)</option>
+                          <option value="minimal">Minimal (Speed focus)</option>
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High (Precision focus)</option>
                         </select>
                       </div>
                       <div className={styles.formGroup}>
