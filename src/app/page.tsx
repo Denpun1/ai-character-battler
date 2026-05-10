@@ -323,8 +323,8 @@ function ArenaContent() {
                 }
                 
                 return (
-                  <Card key={h.id} onClick={() => setSelectedHistory(h)} style={{ cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Card key={h.id} onClick={() => setSelectedHistory(h)}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: h.winner_name ? 1 : 0.8 }}>
                       <div>
                         <h3 style={{ fontSize: '1.1rem', marginBottom: '0.3rem', color: h.winner_name ? 'var(--primary)' : 'inherit' }}>
                           {h.winner_name ? `🏆 Winner: ${h.winner_name}` : 'Draw / No Winner'}
