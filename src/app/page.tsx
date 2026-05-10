@@ -374,6 +374,30 @@ function ArenaContent() {
                 <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
                 <div className={styles.formGroup}><label>Temperature ({temperature})</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
                 <div className={styles.formGroup}><label>Instruction (System Prompt)</label><textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '120px' }} required /></div>
+
+                <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <input type="checkbox" id="thinking-mode" checked={showThinking} onChange={e => setShowThinking(e.target.checked)} />
+                    <label htmlFor="thinking-mode" style={{ cursor: 'pointer', fontWeight: 'bold' }}>Enable Thinking Mode (Gemma-4 / Gemini 2/3)</label>
+                  </div>
+                  {showThinking && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingLeft: '1.5rem', borderLeft: '2px solid var(--primary)' }}>
+                      <div className={styles.formGroup}>
+                        <label>Thinking Level (Depth)</label>
+                        <select value={thinkingLevel} onChange={e => setThinkingLevel(e.target.value as any)} className={styles.input}>
+                          <option value="MINIMAL">Minimal (Speed focus)</option>
+                          <option value="LOW">Low</option>
+                          <option value="MEDIUM">Medium</option>
+                          <option value="HIGH">High (Precision focus)</option>
+                        </select>
+                      </div>
+                      <div className={styles.formGroup}>
+                        <label>Thinking Budget (Tokens - Gemini 2.0 only)</label>
+                        <input type="number" value={thinkingBudget} onChange={e => setThinkingBudget(parseInt(e.target.value) || 0)} className={styles.input} placeholder="e.g. 16000" />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
