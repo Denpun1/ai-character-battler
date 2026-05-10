@@ -351,7 +351,27 @@ function ArenaContent() {
         <div className={styles.modalOverlay} onClick={() => setSelectedHistory(null)}>
           <div className={styles.modalContent} style={{ maxWidth: '800px', width: '90%', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h2 style={{ color: 'var(--primary)', marginBottom: '1.5rem', borderBottom: '1px solid #333', paddingBottom: '0.5rem' }}>Battle Result</h2>
-            <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>{selectedHistory.log_text}</div>
+            {(() => {
+              const logText = selectedHistory.log_text || '';
+              const thinkMatch = logText.match(/<think>([\s\S]*?)<\/think>/);
+              const cleanText = logText.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+              
+              return (
+                <>
+                  {thinkMatch && (
+                    <details style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#888', outline: 'none' }}>思考プロセスを展開</summary>
+                      <div style={{ marginTop: '1rem', opacity: 0.8, fontSize: '0.9rem', whiteSpace: 'pre-wrap', lineHeight: '1.6', color: '#ccc' }}>
+                        {thinkMatch[1].trim()}
+                      </div>
+                    </details>
+                  )}
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem' }}>
+                    {cleanText}
+                  </div>
+                </>
+              );
+            })()}
             <div className={styles.modalActions}>
               <Button onClick={() => setSelectedHistory(null)}>Close</Button>
             </div>

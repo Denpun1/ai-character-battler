@@ -83,18 +83,21 @@ export async function POST(req: NextRequest) {
               for (const part of parts) {
                 if (part.thought) {
                   if (!isThinking) {
-                    controller.enqueue(`\n\n【思考プロセス】\n`);
+                    controller.enqueue(`<think>\n`);
                     isThinking = true;
                   }
                   controller.enqueue(part.text);
                 } else if (part.text) {
                   if (isThinking) {
-                    controller.enqueue(`\n\n【回答】\n`);
+                    controller.enqueue(`\n</think>\n\n`);
                     isThinking = false;
                   }
                   controller.enqueue(part.text);
                 }
               }
+            }
+            if (isThinking) {
+               controller.enqueue(`\n</think>\n\n`);
             }
           } catch (err: any) {
             controller.error(err);

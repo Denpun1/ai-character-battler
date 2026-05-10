@@ -95,31 +95,31 @@ export async function POST(req: NextRequest) {
             config
           });
 
-          let isThinking = false;
+          let thoughtText = "";
+          let answerText = "";
           for await (const chunk of stream) {
             const parts = chunk.candidates?.[0]?.content?.parts || [];
             for (const part of parts) {
               if (part.thought) {
-                if (!isThinking) {
-                  fullText += `\n\n【思考プロセス】\n`;
-                  isThinking = true;
-                }
-                fullText += part.text;
+                thoughtText += part.text;
               } else if (part.text) {
-                if (isThinking) {
-                  fullText += `\n\n【回答】\n`;
-                  isThinking = false;
-                }
-                fullText += part.text;
+                answerText += part.text;
               }
             }
+          }
+          
+          fullText = answerText;
+          if (thoughtText) {
+             fullText = `<think>\n${thoughtText}\n</think>\n\n` + answerText;
           }
         } else {
           fullText = await runLightningAI(queueItem, fighters);
         }
 
         let winnerName = null;
-        winnerName = fullText.match(/勝者[:：]\s*(.+)/)?.[1]?.trim() || null;
+        // Extract winner ONLY from the final answer text to avoid matching thoughts
+        const textToSearch = fullText.replace(/<think>[\s\S]*?<\/think>/, '');
+        winnerName = textToSearch.match(/勝者[:：]\s*([^<\n]+)/)?.[1]?.trim() || null;
 
         // Persist Result
         const { data: history, error: histError } = await supabase.from('battle_history').insert({
