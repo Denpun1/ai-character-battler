@@ -168,7 +168,7 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
       model: queueItem.model || 'gemma-4-31b-it',
       messages: [
         { role: 'system', content: queueItem.system_prompt || '' }, 
-        { role: 'user', content: buildPrompt(queueItem, fighters) }
+        { role: 'user', content: `${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。` }
       ],
       temperature: queueItem.temperature || 0.7,
       max_tokens: 4096,

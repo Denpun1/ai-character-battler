@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      let userPrompt = `### 参加者データ\n${playerInfo}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`;
+      let userPrompt = `${playerInfo}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`;
 
       const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
         method: 'POST',
