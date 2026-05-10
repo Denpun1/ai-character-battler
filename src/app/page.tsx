@@ -311,17 +311,34 @@ function ArenaContent() {
               <Button variant="secondary" onClick={fetchHistory}>Refresh</Button>
             </header>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {history.map(h => (
-                <Card key={h.id} onClick={() => setSelectedHistory(h)}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <strong>{h.winner_name ? `Winner: ${h.winner_name}` : 'Draw / No Winner'}</strong>
-                      <div style={{ fontSize: '0.8rem', opacity: 0.5 }}>{new Date(h.created_at).toLocaleString()}</div>
+              {history.map(h => {
+                let names = ['???', '???'];
+                if (h.participant_ids && h.participant_ids.length > 0) {
+                  names = h.participant_ids.map((id: string) => characters.find(c => c.id === id)?.name || '???');
+                } else if (h.p1_id && h.p2_id) {
+                  names = [
+                    characters.find(c => c.id === h.p1_id)?.name || '???',
+                    characters.find(c => c.id === h.p2_id)?.name || '???'
+                  ];
+                }
+                
+                return (
+                  <Card key={h.id} onClick={() => setSelectedHistory(h)} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h3 style={{ fontSize: '1.1rem', marginBottom: '0.3rem', color: h.winner_name ? 'var(--primary)' : 'inherit' }}>
+                          {h.winner_name ? `🏆 Winner: ${h.winner_name}` : 'Draw / No Winner'}
+                        </h3>
+                        <p style={{ fontSize: '0.95rem', fontWeight: 'bold', marginBottom: '0.2rem', opacity: 0.9 }}>
+                          {names.join(' VS ')}
+                        </p>
+                        <div style={{ fontSize: '0.8rem', opacity: 0.5 }}>{new Date(h.created_at).toLocaleString()}</div>
+                      </div>
+                      <span style={{ color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>View Result ↗</span>
                     </div>
-                    <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>View Result ↗</span>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
               {history.length === 0 && <div className={styles.emptyState}>No history yet.</div>}
             </div>
           </div>
