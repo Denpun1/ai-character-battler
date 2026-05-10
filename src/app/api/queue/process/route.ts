@@ -83,9 +83,9 @@ export async function POST(req: NextRequest) {
 
           if (queueItem.show_thinking) {
             if (isGemini2 && queueItem.thinking_budget > 0) {
-              config.thinking_config = { include_thoughts: true, thinking_budget: queueItem.thinking_budget };
+              config.thinkingConfig = { includeThoughts: true, thinkingBudget: queueItem.thinking_budget };
             } else if (isGemma4 || isGemini3) {
-              config.thinking_config = { include_thoughts: true, thinking_level: queueItem.thinking_level || 'high' };
+              config.thinkingConfig = { includeThoughts: true, thinkingLevel: queueItem.thinking_level || 'high' };
             }
           }
 
