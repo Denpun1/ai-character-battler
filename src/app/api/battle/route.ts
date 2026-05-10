@@ -77,8 +77,24 @@ export async function POST(req: NextRequest) {
       const stream = new ReadableStream({
         async start(controller) {
           try {
+            let isThinking = false;
             for await (const chunk of responseStream) {
-              if (chunk.text) controller.enqueue(chunk.text);
+              const parts = chunk.candidates?.[0]?.content?.parts || [];
+              for (const part of parts) {
+                if (part.thought) {
+                  if (!isThinking) {
+                    controller.enqueue(`\n\n【思考プロセス】\n`);
+                    isThinking = true;
+                  }
+                  controller.enqueue(part.text);
+                } else if (part.text) {
+                  if (isThinking) {
+                    controller.enqueue(`\n\n【回答】\n`);
+                    isThinking = false;
+                  }
+                  controller.enqueue(part.text);
+                }
+              }
             }
           } catch (err: any) {
             controller.error(err);

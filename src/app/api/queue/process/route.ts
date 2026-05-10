@@ -95,8 +95,24 @@ export async function POST(req: NextRequest) {
             config
           });
 
+          let isThinking = false;
           for await (const chunk of stream) {
-            if (chunk.text) fullText += chunk.text;
+            const parts = chunk.candidates?.[0]?.content?.parts || [];
+            for (const part of parts) {
+              if (part.thought) {
+                if (!isThinking) {
+                  fullText += `\n\n【思考プロセス】\n`;
+                  isThinking = true;
+                }
+                fullText += part.text;
+              } else if (part.text) {
+                if (isThinking) {
+                  fullText += `\n\n【回答】\n`;
+                  isThinking = false;
+                }
+                fullText += part.text;
+              }
+            }
           }
         } else {
           fullText = await runLightningAI(queueItem, fighters);
