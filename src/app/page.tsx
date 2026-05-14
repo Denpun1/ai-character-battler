@@ -43,7 +43,7 @@ function ArenaContent() {
   const { history, fetchHistory } = useHistory(user?.id);
   const { queue, isProcessing, handleDragEnd, deleteQueueItem, processQueue } = useQueue(user?.id, characters, items);
 
-  const [globalTab, setGlobalTab] = useState<'arena' | 'history' | 'queue'>('arena');
+  const [globalTab, setGlobalTab] = useState<'arena' | 'history' | 'queue' | 'logs'>('arena');
   
   interface EntrySocket {
     id: string;
@@ -92,7 +92,7 @@ function ArenaContent() {
 
   useEffect(() => {
     const t = searchParams.get('tab');
-    if (t === 'history' || t === 'queue' || t === 'arena') setGlobalTab(t as any);
+    if (t === 'history' || t === 'queue' || t === 'arena' || t === 'logs') setGlobalTab(t as any);
   }, [searchParams]);
 
   useEffect(() => {
@@ -221,10 +221,21 @@ function ArenaContent() {
 
   const getSliderTransform = () => {
     if (globalTab === 'arena') return 'translateX(0%)';
-    if (globalTab === 'history') return 'translateX(-33.333%)';
-    if (globalTab === 'queue') return 'translateX(-66.666%)';
+    if (globalTab === 'history') return 'translateX(-25%)';
+    if (globalTab === 'queue') return 'translateX(-50%)';
+    if (globalTab === 'logs') return 'translateX(-75%)';
     return 'translateX(0%)';
   };
+  
+  const [appLogs, setAppLogs] = useState<any[]>([]);
+  const fetchLogs = async () => {
+    if (!user?.id) return;
+    const { data } = await supabase.from('battle_queue').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+    if (data) setAppLogs(data);
+  };
+  useEffect(() => {
+    if (globalTab === 'logs') fetchLogs();
+  }, [globalTab, user?.id]);
 
   return (
     <div className={styles.container}>
@@ -233,6 +244,7 @@ function ArenaContent() {
         <div className={`${styles.tabNavItem} ${globalTab === 'arena' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('arena')}>ARENA</div>
         <div className={`${styles.tabNavItem} ${globalTab === 'history' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('history')}>HISTORY</div>
         <div className={`${styles.tabNavItem} ${globalTab === 'queue' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('queue')}>QUEUE</div>
+        <div className={`${styles.tabNavItem} ${globalTab === 'logs' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('logs')}>LOGS</div>
       </div>
 
       {/* Notification Toast */}
@@ -368,6 +380,47 @@ function ArenaContent() {
               </SortableContext>
             </DndContext>
             {queue.length === 0 && <div className={styles.emptyState}>Queue is empty.</div>}
+          </div>
+
+          {/* TAB 4: SYSTEM LOGS */}
+          <div className={styles.tabContent}>
+            <header className={styles.header}>
+              <h1 className={styles.title}>System Logs</h1>
+              <Button variant="secondary" onClick={fetchLogs}>Refresh Logs</Button>
+            </header>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {appLogs.map(log => {
+                 let parsedPrompt = { isCombinedPrompt: false, systemPrompt: '', userPrompt: log.system_prompt };
+                 try {
+                   const json = JSON.parse(log.system_prompt);
+                   if (json.isCombinedPrompt) parsedPrompt = json;
+                 } catch(e) {}
+                 
+                 return (
+                  <div key={log.id} style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', borderLeft: `4px solid ${log.status === 'failed' ? '#ef4444' : log.status === 'completed' ? '#10b981' : '#3b82f6'}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ fontWeight: 'bold' }}>{new Date(log.created_at).toLocaleString()}</span>
+                      <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', background: 'rgba(0,0,0,0.3)', textTransform: 'uppercase' }}>{log.status}</span>
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: '#aaa', marginBottom: '0.5rem' }}>
+                      Model: {log.model} | Provider: {log.provider} | Temp: {log.temperature}
+                    </div>
+                    {log.error_msg && (
+                      <div style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', padding: '0.8rem', borderRadius: '4px', marginBottom: '0.5rem', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
+                        Error: {log.error_msg}
+                      </div>
+                    )}
+                    <details style={{ background: 'rgba(0,0,0,0.4)', padding: '0.5rem', borderRadius: '4px', border: '1px solid #333' }}>
+                      <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: '#888' }}>Show Request Payload</summary>
+                      <pre style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#ccc', whiteSpace: 'pre-wrap', overflowX: 'auto', maxHeight: '200px', overflowY: 'auto' }}>
+                        {JSON.stringify(parsedPrompt, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                );
+              })}
+              {appLogs.length === 0 && <div className={styles.emptyState}>No logs found.</div>}
+            </div>
           </div>
 
         </div>
