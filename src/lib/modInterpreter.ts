@@ -66,6 +66,13 @@ export class ModInterpreter {
         }
         break;
 
+      case 'Set Prompt':
+        {
+          this.variables['__SYSTEM_PROMPT__'] = this.resolveValue(node.data.systemPrompt || '');
+          this.variables['__USER_PROMPT__'] = this.resolveValue(node.data.userPrompt || '');
+        }
+        break;
+
       case 'Show UI':
         if (this.onShowUI) {
           // Pause execution and wait for user input from the custom layout

@@ -191,13 +191,11 @@ function ArenaContent() {
     try {
       const participantPayload = validSockets.map(s => `${s.charId}::${s.itemIds.join(',')}`);
       
-      // Interpolate system/user prompt with modVars
-      let finalSys = settings.systemPrompt;
-      let finalUser = settings.userPrompt;
-      Object.entries(modVars).forEach(([k, v]) => {
-        finalSys = finalSys.replaceAll(`{{${k}}}`, String(v));
-        finalUser = finalUser.replaceAll(`{{${k}}}`, String(v));
-      });
+      // If MOD explicitly set __SYSTEM_PROMPT__ or __USER_PROMPT__, use those.
+      // Otherwise, the MOD can still use modVars manually in the settings UI if they want, 
+      // but we NO LONGER automatically replace things globally.
+      let finalSys = modVars.__SYSTEM_PROMPT__ || settings.systemPrompt;
+      let finalUser = modVars.__USER_PROMPT__ || settings.userPrompt;
 
       const { data, error } = await supabase.from('battle_queue').insert({
         user_id: user?.id, participant_ids: participantPayload, p1_id: validSockets[0].charId, p2_id: validSockets[1].charId,
@@ -716,9 +714,17 @@ function ArenaContent() {
 
       {/* MOD Input Modal */}
       {modModalData && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modal} style={{ maxWidth: '800px', width: '90%' }}>
-            <h2 className={styles.modalTitle}>MOD Input Required</h2>
+        <div className={styles.modalOverlay} style={{
+            background: mods.find(m => m.id === activeModId)?.config?.overlayBg || 'rgba(0,0,0,0.85)',
+            backdropFilter: mods.find(m => m.id === activeModId)?.config?.blur || 'blur(8px)'
+        }}>
+          <div className={styles.modal} style={{ 
+            maxWidth: '800px', width: '90%', 
+            background: mods.find(m => m.id === activeModId)?.config?.modalBg || '#111',
+            border: mods.find(m => m.id === activeModId)?.config?.border || '1px solid #333',
+            ...mods.find(m => m.id === activeModId)?.config?.customStyle
+          }}>
+            <h2 className={styles.modalTitle}>{mods.find(m => m.id === activeModId)?.name}</h2>
             <div style={{ position: 'relative', height: '400px', background: '#111', borderRadius: '12px', border: '1px solid #333' }}>
               {modModalData.map((el: any) => (
                 <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.w, height: el.h, color: 'white' }}>
