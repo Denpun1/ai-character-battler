@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
 
           const stream = await genAI.models.generateContentStream({
             model: modelName,
-            contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
+            contents: [{ role: 'user', parts: [{ text: finalPrompt.replace(/~~[\s\S]*?~~/g, '') }] }],
             config
           });
 
@@ -194,10 +194,10 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
     body: JSON.stringify({
       model: queueItem.model || 'gemma-4-31b-it',
       messages: [
-        { role: 'system', content: systemContent }, 
-        { role: 'user', content: hasCharactersPlaceholder 
+        { role: 'system', content: systemContent.replace(/~~[\s\S]*?~~/g, '') }, 
+        { role: 'user', content: (hasCharactersPlaceholder 
             ? '対戦を開始してください。' 
-            : `${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。` }
+            : `${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`).replace(/~~[\s\S]*?~~/g, '') }
       ],
       temperature: queueItem.temperature || 0.7,
       max_tokens: 4096,

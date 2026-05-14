@@ -415,7 +415,8 @@ function ArenaContent() {
                   <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '180px' }} required />
                   <div style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem', lineHeight: '1.4' }}>
                     * <code>{`{{CHARACTERS}}`}</code> と記述した部分にキャラクターデータが自動挿入されます。<br/>
-                    * システムが勝者を自動記録するためには、プロンプトの最後に <strong>「勝者: [キャラクター名]」</strong> と出力させる指示を含めてください。
+                    * システムが勝者を自動記録するためには、プロンプトの最後に <strong>「勝者: [キャラクター名]」</strong> と出力させる指示を含めてください。<br/>
+                    * <code>~~除外したいテキスト~~</code> のように波線で囲むと、AIへの送信時にその部分が自動的に除外（コメントアウト）されます。プレビュー画面で赤く表示されます。
                   </div>
                 </div>
 
@@ -480,8 +481,13 @@ function ArenaContent() {
         <div className={styles.modalOverlay} onClick={() => setIsPreviewModalOpen(false)}>
           <div className={styles.modalContent} style={{ maxWidth: '800px', width: '90%', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h2 style={{ marginBottom: '1rem' }}>Request Prompt Preview</h2>
-            <div style={{ whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'monospace', border: '1px solid #444' }}>
-              {previewPrompt}
+            <div style={{ whiteSpace: 'pre-wrap', background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', fontSize: '0.9rem', fontFamily: 'monospace', border: '1px solid #444', lineHeight: '1.5' }}>
+              {previewPrompt.split(/(~~[\s\S]*?~~)/g).map((part, i) => {
+                if (part.startsWith('~~') && part.endsWith('~~')) {
+                  return <del key={i} style={{ color: '#ef4444', opacity: 0.8, textDecorationThickness: '2px' }}>{part.slice(2, -2)}</del>;
+                }
+                return <span key={i}>{part}</span>;
+              })}
             </div>
             <div className={styles.modalActions}>
               <Button onClick={() => setIsPreviewModalOpen(false)}>Close</Button>
