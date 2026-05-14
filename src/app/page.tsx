@@ -380,11 +380,26 @@ function ArenaContent() {
             <h2 style={{ color: 'var(--primary)', marginBottom: '1.5rem', borderBottom: '1px solid #333', paddingBottom: '0.5rem' }}>Battle Result</h2>
             {(() => {
               const logText = selectedHistory.log_text || '';
-              const thinkMatch = logText.match(/<think>([\s\S]*?)<\/think>/);
-              const cleanText = logText.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+              
+              const requestMatch = logText.match(/<raw_request>([\s\S]*?)<\/raw_request>/);
+              let cleanText = logText;
+              if (requestMatch) cleanText = cleanText.replace(requestMatch[0], '');
+              
+              const thinkMatch = cleanText.match(/<think>([\s\S]*?)<\/think>/);
+              if (thinkMatch) cleanText = cleanText.replace(thinkMatch[0], '');
+              
+              cleanText = cleanText.trim();
               
               return (
                 <>
+                  {requestMatch && (
+                    <details style={{ marginBottom: '1rem', background: 'rgba(0,0,0,0.4)', padding: '1rem', borderRadius: '8px', border: '1px solid #333' }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#4da6ff', outline: 'none' }}>通信ログ（生のリクエストデータ）を展開</summary>
+                      <pre style={{ marginTop: '1rem', opacity: 0.9, fontSize: '0.85rem', whiteSpace: 'pre-wrap', lineHeight: '1.4', color: '#aaa', overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
+                        {requestMatch[1].trim()}
+                      </pre>
+                    </details>
+                  )}
                   {thinkMatch && (
                     <details style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
                       <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#888', outline: 'none' }}>思考プロセスを展開</summary>

@@ -138,10 +138,18 @@ export async function POST(req: NextRequest) {
                 }
               }
               
+              let rawLog = JSON.stringify({
+                endpoint: "Google AI Stream",
+                model: modelName,
+                contents: [{ role: 'user', parts: [{ text: finalPrompt.replace(/~~[\s\S]*?~~/g, '') }] }],
+                config
+              }, null, 2);
+              
               fullText = answerText;
               if (thoughtText) {
                  fullText = `<think>\n${thoughtText}\n</think>\n\n` + answerText;
               }
+              fullText += `\n\n<raw_request>\n${rawLog}\n</raw_request>`;
               break; // Success, exit retry loop
             } catch (err: any) {
               attempt++;
@@ -159,8 +167,8 @@ export async function POST(req: NextRequest) {
         }
 
         let winnerName = null;
-        // Extract winner ONLY from the final answer text to avoid matching thoughts
-        const textToSearch = fullText.replace(/<think>[\s\S]*?<\/think>/, '');
+        // Extract winner ONLY from the final answer text to avoid matching thoughts or raw requests
+        const textToSearch = fullText.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<raw_request>[\s\S]*?<\/raw_request>/g, '');
         winnerName = textToSearch.match(/勝者[:：]\s*([^<\n]+)/)?.[1]?.trim() || null;
 
         // Persist Result
@@ -268,7 +276,19 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
       }
       
       const data = await res.json();
-      return data.choices[0].message.content;
+      
+      let rawLog = JSON.stringify({
+        endpoint: "Lightning AI Completions",
+        model: queueItem.model || 'gemma-4-31b-it',
+        messages: [
+          { role: 'system', content: systemPromptText.replace(/~~[\s\S]*?~~/g, '') }, 
+          { role: 'user', content: userContent.replace(/~~[\s\S]*?~~/g, '') }
+        ],
+        temperature: queueItem.temperature || 0.7,
+        max_tokens: 4096
+      }, null, 2);
+      
+      return data.choices[0].message.content + `\n\n<raw_request>\n${rawLog}\n</raw_request>`;
     } catch (err: any) {
       attempt++;
       console.error(`[Lightning API Error] Attempt ${attempt}/${retries}:`, err.message);
