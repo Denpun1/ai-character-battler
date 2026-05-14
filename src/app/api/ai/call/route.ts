@@ -12,8 +12,10 @@ export async function POST(req: Request) {
 
     const response = await client.models.generateContent({
       model: 'gemini-2.0-flash',
-      systemInstruction: systemPrompt,
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }]
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      config: {
+        systemInstruction: systemPrompt
+      }
     });
     
     return NextResponse.json({ text: response.text() });
