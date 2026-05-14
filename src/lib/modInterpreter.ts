@@ -83,8 +83,9 @@ export class ModInterpreter {
           const sys = this.resolveValue(node.data.systemPrompt || '');
           const user = this.resolveValue(node.data.userPrompt || '');
           const result = await this.onAICall(sys, user);
-          if (node.data.outputVar) {
-            this.variables[node.data.outputVar] = result;
+          const outputVar = node.data.outputVar as string;
+          if (outputVar) {
+            this.variables[outputVar] = result;
           }
         }
         break;
