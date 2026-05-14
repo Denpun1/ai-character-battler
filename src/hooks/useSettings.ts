@@ -6,6 +6,7 @@ const STORAGE_KEY = 'ai_character_battler_settings';
 
 export interface Settings {
   systemPrompt: string;
+  userPrompt: string;
   model: string;
   temperature: number;
   showThinking: boolean;
@@ -20,7 +21,8 @@ export interface SettingPreset extends Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  systemPrompt: `以下のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力してください。
+  systemPrompt: 'あなたは最高のゲームマスターです。与えられたキャラクターの能力や装備を元に、白熱した戦闘シーンをシミュレーションしてください。',
+  userPrompt: `以下のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力してください。
 
 ### 参加者データ
 {{CHARACTERS}}
@@ -37,6 +39,16 @@ const DEFAULT_SETTINGS: Settings = {
 export function useSettings() {
   const { userId, isLoaded: authLoaded } = useAuth();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  
+  const parsePromptData = useCallback((dataStr: string | null) => {
+    if (!dataStr) return { systemPrompt: DEFAULT_SETTINGS.systemPrompt, userPrompt: DEFAULT_SETTINGS.userPrompt };
+    try {
+      const json = JSON.parse(dataStr);
+      if (json.isCombinedPrompt) return { systemPrompt: json.systemPrompt || '', userPrompt: json.userPrompt || '' };
+    } catch(e) {}
+    // Legacy fallback: old system_prompt was acting as user instruction
+    return { systemPrompt: '', userPrompt: dataStr };
+  }, []);
   const [presets, setPresets] = useState<SettingPreset[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -49,20 +61,24 @@ export function useSettings() {
       .order('created_at', { ascending: false });
 
     if (data) {
-      setPresets(data.map(d => ({
-        id: d.id,
-        name: d.name,
-        systemPrompt: d.system_prompt,
-        model: d.model,
-        temperature: d.temperature,
-        showThinking: d.show_thinking,
-        thinkingBudget: d.thinking_budget,
-        thinkingLevel: (d.thinking_level || 'high').toLowerCase() as any,
-        provider: d.provider,
-        jsonMode: d.json_mode ?? true
-      })));
+      setPresets(data.map(d => {
+        const prompts = parsePromptData(d.system_prompt);
+        return {
+          id: d.id,
+          name: d.name,
+          systemPrompt: prompts.systemPrompt,
+          userPrompt: prompts.userPrompt,
+          model: d.model,
+          temperature: d.temperature,
+          showThinking: d.show_thinking,
+          thinkingBudget: d.thinking_budget,
+          thinkingLevel: (d.thinking_level || 'high').toLowerCase() as any,
+          provider: d.provider,
+          jsonMode: d.json_mode ?? true
+        };
+      }));
     }
-  }, [userId]);
+  }, [userId, parsePromptData]);
 
   const fetchSettings = useCallback(async () => {
     if (!userId) {
@@ -90,8 +106,10 @@ export function useSettings() {
     }
 
     if (data) {
+      const prompts = parsePromptData(data.system_prompt);
       setSettings({
-        systemPrompt: data.system_prompt || DEFAULT_SETTINGS.systemPrompt,
+        systemPrompt: prompts.systemPrompt,
+        userPrompt: prompts.userPrompt,
         model: data.model || DEFAULT_SETTINGS.model,
         temperature: data.temperature ?? DEFAULT_SETTINGS.temperature,
         showThinking: data.show_thinking ?? DEFAULT_SETTINGS.showThinking,
@@ -127,11 +145,12 @@ export function useSettings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
 
     if (userId) {
+      const combinedPrompt = JSON.stringify({ isCombinedPrompt: true, systemPrompt: newSettings.systemPrompt, userPrompt: newSettings.userPrompt });
       const { error } = await supabase
         .from('user_settings')
         .upsert({
           user_id: userId,
-          system_prompt: newSettings.systemPrompt,
+          system_prompt: combinedPrompt,
           model: newSettings.model,
           temperature: newSettings.temperature,
           show_thinking: newSettings.showThinking,
@@ -152,10 +171,11 @@ export function useSettings() {
 
   const createPreset = async (name: string, payload: Settings) => {
     if (!userId) return;
+    const combinedPrompt = JSON.stringify({ isCombinedPrompt: true, systemPrompt: payload.systemPrompt, userPrompt: payload.userPrompt });
     await supabase.from('setting_presets').insert({
       user_id: userId,
       name,
-      system_prompt: payload.systemPrompt,
+      system_prompt: combinedPrompt,
       model: payload.model,
       temperature: payload.temperature,
       show_thinking: payload.showThinking,

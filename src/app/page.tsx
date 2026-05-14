@@ -73,6 +73,7 @@ function ArenaContent() {
   const [itemName, setItemName] = useState('');
   const [itemDesc, setItemDesc] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [userPrompt, setUserPrompt] = useState('');
   const [model, setModel] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [showThinking, setShowThinking] = useState(false);
@@ -135,7 +136,8 @@ function ArenaContent() {
       const participantPayload = validSockets.map(s => `${s.charId}::${s.itemIds.join(',')}`);
       const { data, error } = await supabase.from('battle_queue').insert({
         user_id: user.id, participant_ids: participantPayload, p1_id: validSockets[0].charId, p2_id: validSockets[1].charId,
-        system_prompt: settings.systemPrompt, model: settings.model, temperature: settings.temperature, provider: settings.provider,
+        system_prompt: JSON.stringify({ isCombinedPrompt: true, systemPrompt: settings.systemPrompt, userPrompt: settings.userPrompt }), 
+        model: settings.model, temperature: settings.temperature, provider: settings.provider,
         status: 'pending', created_at: Date.now()
       }).select('id').single();
       if (error) throw error;
@@ -144,7 +146,8 @@ function ArenaContent() {
   };
 
   const openSettings = () => {
-    setSystemPrompt(settings.systemPrompt); setModel(settings.model); setTemperature(settings.temperature);
+    setSystemPrompt(settings.systemPrompt); setUserPrompt(settings.userPrompt);
+    setModel(settings.model); setTemperature(settings.temperature);
     setShowThinking(settings.showThinking); setThinkingBudget(settings.thinkingBudget); setThinkingLevel(settings.thinkingLevel || 'HIGH');
     setProvider(settings.provider || 'google'); setIsSettingsOpen(true);
   };
@@ -170,7 +173,14 @@ function ArenaContent() {
       }
     });
 
-    const finalPrompt = `${systemPrompt}\n\n${playerInfo}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
+    let finalUserPrompt = userPrompt;
+    if (finalUserPrompt.includes('{{CHARACTERS}}')) {
+       finalUserPrompt = finalUserPrompt.replace('{{CHARACTERS}}', playerInfo);
+    } else {
+       finalUserPrompt = `${finalUserPrompt}\n\n### 参加者データ\n${playerInfo}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
+    }
+    
+    const finalPrompt = `[System Prompt / Persona]\n${systemPrompt}\n\n[User Prompt / Instructions]\n${finalUserPrompt}`;
     
     const params = {
       provider,
@@ -402,7 +412,7 @@ function ArenaContent() {
             <h2 style={{ marginBottom: '1.5rem' }}>Settings & System Instructions</h2>
             <form onSubmit={(e) => {
               e.preventDefault();
-              saveSettings({ systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
+              saveSettings({ systemPrompt, userPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider });
               setIsSettingsOpen(false);
             }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
@@ -411,8 +421,12 @@ function ArenaContent() {
                 <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
                 <div className={styles.formGroup}><label>Temperature ({temperature})</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
                 <div className={styles.formGroup}>
-                  <label>Instruction (System Prompt)</label>
-                  <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '180px' }} required />
+                  <label>システムプロンプト (AIの役割・世界観)</label>
+                  <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '80px' }} placeholder="例: あなたは最高のゲームマスターです。" />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>プロンプト (シミュレーションの実行指示)</label>
+                  <textarea value={userPrompt} onChange={e => setUserPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '180px' }} required />
                   <div style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem', lineHeight: '1.4' }}>
                     * <code>{`{{CHARACTERS}}`}</code> と記述した部分にキャラクターデータが自動挿入されます。<br/>
                     * システムが勝者を自動記録するためには、プロンプトの最後に <strong>「勝者: [キャラクター名]」</strong> と出力させる指示を含めてください。<br/>
@@ -451,7 +465,7 @@ function ArenaContent() {
                   {presets.length === 0 ? <p style={{ opacity: 0.5, fontSize: '0.9rem' }}>No presets saved.</p> : presets.map(p => (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.6rem 1rem', borderRadius: '8px' }}>
                       <span style={{ fontWeight: 'bold', cursor: 'pointer', flexGrow: 1 }} onClick={() => {
-                        setSystemPrompt(p.systemPrompt); setModel(p.model); setTemperature(p.temperature); setProvider(p.provider);
+                        setSystemPrompt(p.systemPrompt); setUserPrompt(p.userPrompt); setModel(p.model); setTemperature(p.temperature); setProvider(p.provider);
                       }}>{p.name}</span>
                       <button type="button" onClick={() => deletePreset(p.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0.5rem' }}>✕</button>
                     </div>
@@ -459,7 +473,7 @@ function ArenaContent() {
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <input type="text" value={newPresetName} onChange={e => setNewPresetName(e.target.value)} className={styles.input} placeholder="New preset name..." />
-                  <Button type="button" variant="secondary" onClick={() => { if(!newPresetName.trim()) return; createPreset(newPresetName, { systemPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider }); setNewPresetName(''); }} disabled={!newPresetName.trim()}>Save Current</Button>
+                  <Button type="button" variant="secondary" onClick={() => { if(!newPresetName.trim()) return; createPreset(newPresetName, { systemPrompt, userPrompt, model, temperature, showThinking, thinkingBudget, thinkingLevel, provider }); setNewPresetName(''); }} disabled={!newPresetName.trim()}>Save Current</Button>
                 </div>
               </div>
 

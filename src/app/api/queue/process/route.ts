@@ -70,7 +70,18 @@ export async function POST(req: NextRequest) {
           if (!apiKey) throw new Error("GEMINI_API_KEY missing.");
           
           const genAI = new GoogleGenAI({ apiKey });
-          let finalPrompt = queueItem.system_prompt || '';
+          
+          let systemPromptText = '';
+          let userPromptText = queueItem.system_prompt || '';
+          try {
+            const json = JSON.parse(queueItem.system_prompt);
+            if (json.isCombinedPrompt) {
+               systemPromptText = json.systemPrompt || '';
+               userPromptText = json.userPrompt || '';
+            }
+          } catch(e) {}
+
+          let finalPrompt = userPromptText;
           if (finalPrompt.includes('{{CHARACTERS}}')) {
             finalPrompt = finalPrompt.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
           } else {
@@ -85,6 +96,10 @@ export async function POST(req: NextRequest) {
             temperature: queueItem.temperature || 0.7,
             maxOutputTokens: 8192
           };
+          
+          if (systemPromptText.trim() !== '') {
+            config.systemInstruction = systemPromptText.replace(/~~[\s\S]*?~~/g, '');
+          }
 
           if (queueItem.show_thinking) {
             if (isGemini2 && queueItem.thinking_budget > 0) {
@@ -182,10 +197,22 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
   const lightningKey = process.env.LIGHTNING_API_KEY;
   if (!lightningKey) throw new Error("LIGHTNING_API_KEY is missing.");
 
-  let systemContent = queueItem.system_prompt || '';
-  const hasCharactersPlaceholder = systemContent.includes('{{CHARACTERS}}');
+  let systemPromptText = '';
+  let userPromptText = queueItem.system_prompt || '';
+  try {
+    const json = JSON.parse(queueItem.system_prompt);
+    if (json.isCombinedPrompt) {
+        systemPromptText = json.systemPrompt || '';
+        userPromptText = json.userPrompt || '';
+    }
+  } catch(e) {}
+
+  let userContent = userPromptText;
+  const hasCharactersPlaceholder = userContent.includes('{{CHARACTERS}}');
   if (hasCharactersPlaceholder) {
-     systemContent = systemContent.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
+     userContent = userContent.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
+  } else {
+     userContent = `${userContent}\n\n### 参加者データ\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
   }
 
   const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
@@ -194,10 +221,8 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
     body: JSON.stringify({
       model: queueItem.model || 'gemma-4-31b-it',
       messages: [
-        { role: 'system', content: systemContent.replace(/~~[\s\S]*?~~/g, '') }, 
-        { role: 'user', content: (hasCharactersPlaceholder 
-            ? '対戦を開始してください。' 
-            : `${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`).replace(/~~[\s\S]*?~~/g, '') }
+        { role: 'system', content: systemPromptText.replace(/~~[\s\S]*?~~/g, '') }, 
+        { role: 'user', content: userContent.replace(/~~[\s\S]*?~~/g, '') }
       ],
       temperature: queueItem.temperature || 0.7,
       max_tokens: 4096,
