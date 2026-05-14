@@ -25,7 +25,7 @@ export class ModInterpreter {
   }
 
   async run() {
-    const startNode = this.nodes.find(n => n.data.label === 'Start');
+    const startNode = this.nodes.find(n => n.type === 'start');
     if (!startNode) return this.variables;
 
     await this.executeNode(startNode.id);
@@ -38,14 +38,14 @@ export class ModInterpreter {
 
     let nextHandle = 'trigger-out'; // Default
 
-    const label = node.data.label as string;
+    const type = node.type as string;
 
-    switch (label) {
-      case 'Start':
+    switch (type) {
+      case 'start':
         await delay(100);
         break;
 
-      case 'Variable':
+      case 'variable':
         {
           const varName = (node.data.varName as string) || 'new_var';
           const varValue = this.resolveValue(node.data.varValue || '');
@@ -53,7 +53,7 @@ export class ModInterpreter {
         }
         break;
 
-      case 'Math':
+      case 'math':
         {
             const target = (node.data.targetVar as string);
             const op = (node.data.op as string) || '+';
@@ -66,14 +66,14 @@ export class ModInterpreter {
         }
         break;
 
-      case 'Set Prompt':
+      case 'prompt':
         {
           this.variables['__SYSTEM_PROMPT__'] = this.resolveValue(node.data.systemPrompt || '');
           this.variables['__USER_PROMPT__'] = this.resolveValue(node.data.userPrompt || '');
         }
         break;
 
-      case 'Show UI':
+      case 'showui':
         if (this.onShowUI) {
           // Pause execution and wait for user input from the custom layout
           const result = await this.onShowUI(node.data.layoutData);

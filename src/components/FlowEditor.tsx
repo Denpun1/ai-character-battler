@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   ReactFlow,
   addEdge,
@@ -16,6 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Button } from './Button';
+import { StartNode, VariableNode, MathNode, PromptNode, ShowUINode } from './ModNodes';
 
 interface FlowEditorProps {
   flowData: { nodes: Node[]; edges: Edge[] };
@@ -25,6 +26,14 @@ interface FlowEditorProps {
 export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(flowData.nodes || []);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowData.edges || []);
+
+  const nodeTypes = useMemo(() => ({
+    start: StartNode,
+    variable: VariableNode,
+    math: MathNode,
+    prompt: PromptNode,
+    showui: ShowUINode,
+  }), []);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -41,9 +50,17 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
   }, [flowData]);
 
   const addNode = (type: string) => {
+    const nodeTypeMap: Record<string, string> = {
+        'Start': 'start',
+        'Variable': 'variable',
+        'Math': 'math',
+        'Set Prompt': 'prompt',
+        'Show UI': 'showui'
+    };
+    
     const newNode: Node = {
       id: `node_${Date.now()}`,
-      type: 'default',
+      type: nodeTypeMap[type] || 'default',
       data: { 
         label: type,
         ...(type === 'Variable' ? { varName: 'myVar', varValue: '100' } : {}),
@@ -51,13 +68,6 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
         ...(type === 'Set Prompt' ? { systemPrompt: '', userPrompt: '' } : {}),
       },
       position: { x: 100, y: 100 },
-      style: { 
-        background: type === 'Start' ? '#059669' : type === 'Set Prompt' ? '#9333ea' : '#333',
-        color: 'white',
-        borderRadius: '8px',
-        padding: '10px',
-        width: 150
-      }
     };
     setNodes((nds) => nds.concat(newNode));
   };
@@ -66,6 +76,7 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
     <div style={{ height: '600px', background: '#111', borderRadius: '12px', border: '1px solid #333' }}>
       <ReactFlow
         nodes={nodes}
+        nodeTypes={nodeTypes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -81,7 +92,6 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
             <Button variant="secondary" onClick={() => addNode('Math')}>+ Math</Button>
             <Button variant="secondary" onClick={() => addNode('Show UI')}>+ Show UI</Button>
             <Button variant="secondary" onClick={() => addNode('Set Prompt')}>+ Set Prompt</Button>
-            <Button variant="secondary" onClick={() => addNode('End')}>+ End</Button>
         </Panel>
       </ReactFlow>
     </div>
