@@ -16,6 +16,7 @@ import { useMods, LayoutElement } from '@/hooks/useMods';
 import { supabase } from '@/lib/supabase';
 import { LayoutDesigner } from '@/components/LayoutDesigner';
 import { FlowEditor } from '@/components/FlowEditor';
+import { ModInterpreter } from '@/lib/modInterpreter';
 import styles from './page.module.css';
 
 // DnD Kit for Queue
@@ -91,6 +92,9 @@ function ArenaContent() {
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedHistory, setSelectedHistory] = useState<any | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [isModRunning, setIsModRunning] = useState(false);
+  const [modModalData, setModModalData] = useState<any>(null);
+  const [modResolvedVars, setModResolvedVars] = useState<any>({});
   const [previewPrompt, setPreviewPrompt] = useState('');
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
@@ -155,16 +159,55 @@ function ArenaContent() {
   const startBattle = async () => {
     const validSockets = entrySockets.filter(s => s.charId);
     if (validSockets.length < 2 || !user) return;
+
+    // Check for active MOD
+    const activeMod = mods.find(m => m.id === activeModId && m.is_active);
+    if (activeMod) {
+      setIsModRunning(true);
+      const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges);
+      
+      interpreter.setUIHandler(async (layoutData) => {
+        setModModalData(activeMod.layout_data); // Show the designer layout
+        return new Promise((resolve) => {
+          (window as any).resolveModUI = (vars: any) => {
+            setModModalData(null);
+            resolve(vars);
+          };
+        });
+      });
+
+      const finalVars = await interpreter.run();
+      setModResolvedVars(finalVars);
+      setIsModRunning(false);
+      // Proceed to actual queueing with resolved vars
+      queueBattle(finalVars);
+    } else {
+      queueBattle({});
+    }
+  };
+
+  const queueBattle = async (modVars: any) => {
+    const validSockets = entrySockets.filter(s => s.charId);
     try {
       const participantPayload = validSockets.map(s => `${s.charId}::${s.itemIds.join(',')}`);
+      
+      // Interpolate system/user prompt with modVars
+      let finalSys = settings.systemPrompt;
+      let finalUser = settings.userPrompt;
+      Object.entries(modVars).forEach(([k, v]) => {
+        finalSys = finalSys.replaceAll(`{{${k}}}`, String(v));
+        finalUser = finalUser.replaceAll(`{{${k}}}`, String(v));
+      });
+
       const { data, error } = await supabase.from('battle_queue').insert({
-        user_id: user.id, participant_ids: participantPayload, p1_id: validSockets[0].charId, p2_id: validSockets[1].charId,
-        system_prompt: JSON.stringify({ isCombinedPrompt: true, systemPrompt: settings.systemPrompt, userPrompt: settings.userPrompt }), 
+        user_id: user?.id, participant_ids: participantPayload, p1_id: validSockets[0].charId, p2_id: validSockets[1].charId,
+        system_prompt: JSON.stringify({ isCombinedPrompt: true, systemPrompt: finalSys, userPrompt: finalUser }), 
         model: settings.model, temperature: settings.temperature, provider: settings.provider,
-        status: 'pending', created_at: Date.now()
+        status: 'pending', created_at: Date.now(),
+        metadata: { modVars } // Store for history
       }).select('id').single();
       if (error) throw error;
-      fetch('/api/queue/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queueId: data.id, userId: user.id }) });
+      fetch('/api/queue/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queueId: data.id, userId: user?.id }) });
     } catch (err: any) { alert(err.message); }
   };
 
@@ -671,6 +714,45 @@ function ArenaContent() {
         </div>
       )}
 
+      {/* MOD Input Modal */}
+      {modModalData && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal} style={{ maxWidth: '800px', width: '90%' }}>
+            <h2 className={styles.modalTitle}>MOD Input Required</h2>
+            <div style={{ position: 'relative', height: '400px', background: '#111', borderRadius: '12px', border: '1px solid #333' }}>
+              {modModalData.map((el: any) => (
+                <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.w, height: el.h, color: 'white' }}>
+                  {el.type === 'text' && <div>{el.content}</div>}
+                  {el.type === 'input' && (
+                    <input 
+                      className={styles.input} 
+                      placeholder={el.content} 
+                      style={{ width: '100%', height: '100%' }}
+                      onChange={(e) => {
+                        const vars = (window as any).tempModVars || {};
+                        vars[el.binding || el.id] = e.target.value;
+                        (window as any).tempModVars = vars;
+                      }}
+                    />
+                  )}
+                  {el.type === 'button' && (
+                    <Button 
+                      style={{ width: '100%', height: '100%' }} 
+                      onClick={() => {
+                        const vars = (window as any).tempModVars || {};
+                        (window as any).resolveModUI(vars);
+                        (window as any).tempModVars = {};
+                      }}
+                    >
+                      {el.content}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
