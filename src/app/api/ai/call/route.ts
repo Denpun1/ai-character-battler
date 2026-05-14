@@ -1,18 +1,20 @@
 
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 
 export async function POST(req: Request) {
   try {
     const { systemPrompt, userPrompt, provider = 'google' } = await req.json();
     
     if (provider === 'google') {
-        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
-        const model = genAI.getGenerativeModel({ 
+        const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+        const model = genAI.models.get("gemini-2.0-flash");
+        
+        const result = await genAI.models.generateContent({
             model: "gemini-2.0-flash",
-            systemInstruction: systemPrompt 
+            systemInstruction: systemPrompt,
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }]
         });
-        const result = await model.generateContent(userPrompt);
         return NextResponse.json({ text: result.response.text() });
     }
     

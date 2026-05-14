@@ -134,8 +134,11 @@ function ArenaContent() {
         // --- POST-BATTLE MOD EXECUTION ---
         const activeMod = mods.find(m => m.id === activeModId && m.is_active);
         if (activeMod) {
-          // Find the result text from history (or fetch it)
-          const { data: resultData } = await supabase.from('battle_history').select('log_text').eq('id', data.resultId).single();
+          // Small delay to ensure DB write is finalized
+          await new Promise(r => setTimeout(r, 1000));
+          
+          const { data: resultData, error: dbErr } = await supabase.from('battle_history').select('log_text').eq('id', data.resultId).single();
+          if (dbErr) console.warn('[MOD] Failed to fetch result for post-battle:', dbErr);
           
           const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
             battle_result: resultData?.log_text || ''
