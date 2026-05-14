@@ -157,14 +157,12 @@ export const AICallNode = memo(({ id, data }: any) => {
         <label style={labelStyle}>System Prompt</label>
         <textarea 
           style={{ ...inputStyle, height: '60px', resize: 'vertical' }} 
-          list="mod-variables"
           value={data.systemPrompt || ''} 
           onChange={(e) => updateNodeData(id, { systemPrompt: e.target.value })} 
         />
         <label style={labelStyle}>User Prompt</label>
         <textarea 
           style={{ ...inputStyle, height: '60px', resize: 'vertical' }} 
-          list="mod-variables"
           value={data.userPrompt || ''} 
           onChange={(e) => updateNodeData(id, { userPrompt: e.target.value })} 
         />
@@ -191,14 +189,12 @@ export const OverrideNode = memo(({ id, data }: any) => {
       <label style={labelStyle}>System Prompt</label>
       <textarea 
         style={{ ...inputStyle, height: '40px', resize: 'vertical' }} 
-        list="mod-variables"
         value={data.systemPrompt || ''} 
         onChange={(e) => updateNodeData(id, { systemPrompt: e.target.value })} 
       />
       <label style={labelStyle}>User Prompt</label>
       <textarea 
         style={{ ...inputStyle, height: '40px', resize: 'vertical' }} 
-        list="mod-variables"
         value={data.userPrompt || ''} 
         onChange={(e) => updateNodeData(id, { userPrompt: e.target.value })} 
       />
