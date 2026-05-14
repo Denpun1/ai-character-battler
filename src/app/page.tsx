@@ -612,7 +612,7 @@ function ArenaContent() {
 
       {isCharSelectionModalOpen && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '800px' }}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '85vh', overflowY: 'auto' }}>
             <h2>Select Character</h2>
             <div className={styles.grid}>{characters.map(c => <Card key={c.id} onClick={() => selectSocketChar(c.id)}>{c.name}</Card>)}</div>
             <Button style={{ marginTop: '1rem' }} onClick={() => setIsCharSelectionModalOpen(false)}>Cancel</Button>
@@ -622,7 +622,7 @@ function ArenaContent() {
 
       {isItemSelectionModalOpen && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} style={{ maxWidth: '800px' }}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px', maxHeight: '85vh', overflowY: 'auto' }}>
             <h2>Select Items</h2>
             <div className={styles.grid}>{items.map(it => <Card key={it.id} selected={entrySockets.find(s => s.id === activeSocketForItems)?.itemIds.includes(it.id)} onClick={() => toggleSocketItem(it.id)}>{it.name}</Card>)}</div>
             <Button style={{ marginTop: '1rem' }} onClick={() => setIsItemSelectionModalOpen(false)}>Done</Button>
