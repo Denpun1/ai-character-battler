@@ -46,7 +46,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 // --- VARIABLE SUGGESTIONS ---
-const VariableDatalist = () => (
+export const VariableDatalist = () => (
   <datalist id="mod-variables">
     <option value="battle_result" />
     <option value="p1_name" />
@@ -61,7 +61,6 @@ export const StartNode = memo(({ data, id }: any) => {
     const { updateNodeData } = useReactFlow();
     return (
         <div style={{ ...nodeStyle, minWidth: '150px' }}>
-            <VariableDatalist />
             <div style={headerStyle('#059669')}>Start Trigger</div>
             <select 
                 style={inputStyle} 

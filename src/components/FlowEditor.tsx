@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Button } from './Button';
-import { StartNode, VariableNode, MathNode, OverrideNode, ShowUINode, AICallNode } from './ModNodes';
+import { StartNode, VariableNode, MathNode, OverrideNode, ShowUINode, AICallNode, VariableDatalist } from './ModNodes';
 
 interface FlowEditorProps {
   flowData: { nodes: Node[]; edges: Edge[] };
@@ -78,6 +78,7 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
 
   return (
     <div style={{ height: '600px', background: '#111', borderRadius: '12px', border: '1px solid #333' }}>
+      <VariableDatalist />
       <ReactFlow
         nodes={nodes}
         nodeTypes={nodeTypes}
