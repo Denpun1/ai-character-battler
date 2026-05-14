@@ -50,6 +50,7 @@ function ArenaContent() {
   const { mods, activeModId, setActiveModId, saveMod, createMod } = useMods(user?.id);
 
   const [globalTab, setGlobalTab] = useState<'arena' | 'history' | 'queue' | 'logs' | 'mods'>('arena');
+  const [managementTab, setManagementTab] = useState<'char' | 'item'>('char');
   const [modSubTab, setModSubTab] = useState<'logic' | 'layout'>('logic');
   const [modElements, setModElements] = useState<LayoutElement[]>([]);
   const [modFlowData, setModFlowData] = useState<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
@@ -137,13 +138,8 @@ function ArenaContent() {
           // Find the result text from history (or fetch it)
           const { data: resultData } = await supabase.from('battle_history').select('result_text').eq('id', data.resultId).single();
           
-          // Inject system variables
           const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
-            battle_result: (resultData as any)?.result_text || '',
-            p1_name: characters.find(c => c.id === data.p1_id)?.name || 'Character 1',
-            p2_name: characters.find(c => c.id === data.p2_id)?.name || 'Character 2',
-            p1_id: data.p1_id,
-            p2_id: data.p2_id
+            battle_result: resultData?.result_text || ''
           });
           
           interpreter.setAICallHandler(async (sys, user) => {
@@ -199,13 +195,7 @@ function ArenaContent() {
     const activeMod = mods.find(m => m.id === activeModId && m.is_active);
     if (activeMod) {
       setIsModRunning(true);
-      const validSockets = entrySockets.filter(s => s.charId);
-      const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
-        p1_name: characters.find(c => c.id === validSockets[0]?.charId)?.name || '',
-        p2_name: characters.find(c => c.id === validSockets[1]?.charId)?.name || '',
-        p1_id: validSockets[0]?.charId || '',
-        p2_id: validSockets[1]?.charId || '',
-      });
+      const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges);
       
       interpreter.setAICallHandler(async (sys, user) => {
         const res = await fetch('/api/ai/call', {
@@ -417,19 +407,42 @@ function ArenaContent() {
             </div>
 
             <div className={styles.rosterHeader}>
-              <h2>Management</h2>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'baseline' }}>
+                <h2 
+                  onClick={() => setManagementTab('char')} 
+                  style={{ cursor: 'pointer', opacity: managementTab === 'char' ? 1 : 0.4, borderBottom: managementTab === 'char' ? '2px solid var(--primary)' : 'none' }}
+                >
+                  Characters
+                </h2>
+                <h2 
+                  onClick={() => setManagementTab('item')} 
+                  style={{ cursor: 'pointer', opacity: managementTab === 'item' ? 1 : 0.4, borderBottom: managementTab === 'item' ? '2px solid var(--primary)' : 'none' }}
+                >
+                  Items
+                </h2>
+              </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <Button variant="secondary" onClick={() => openCharModal()}>+ Char</Button>
                 <Button variant="secondary" onClick={() => { setEditingItemId(null); setItemName(''); setItemDesc(''); setIsItemModalOpen(true); }}>+ Item</Button>
               </div>
             </div>
+            
             <div className={styles.grid}>
-              {characters.map(c => (
-                <Card key={c.id} onClick={() => openCharModal(c.id)}>
-                  <div style={{ fontWeight: 'bold' }}><span style={{ color: c.color }}>●</span> {c.name}</div>
-                  <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{c.description.substring(0, 50)}...</div>
-                </Card>
-              ))}
+              {managementTab === 'char' ? (
+                characters.map(c => (
+                  <Card key={c.id} onClick={() => openCharModal(c.id)}>
+                    <div style={{ fontWeight: 'bold' }}><span style={{ color: c.color }}>●</span> {c.name}</div>
+                    <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{c.description.substring(0, 50)}...</div>
+                  </Card>
+                ))
+              ) : (
+                items.map(it => (
+                  <Card key={it.id} onClick={() => { setEditingItemId(it.id); setItemName(it.name); setItemDesc(it.description || ''); setIsItemModalOpen(true); }}>
+                    <div style={{ fontWeight: 'bold' }}>{it.name}</div>
+                    <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{(it.description || '').substring(0, 50)}...</div>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
 

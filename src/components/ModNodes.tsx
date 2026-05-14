@@ -45,17 +45,6 @@ const labelStyle: React.CSSProperties = {
   display: 'block'
 };
 
-// --- VARIABLE SUGGESTIONS ---
-export const VariableDatalist = () => (
-  <datalist id="mod-variables">
-    <option value="battle_result" />
-    <option value="p1_name" />
-    <option value="p2_name" />
-    <option value="p1_id" />
-    <option value="p2_id" />
-  </datalist>
-);
-
 // --- START NODE ---
 export const StartNode = memo(({ data, id }: any) => {
     const { updateNodeData } = useReactFlow();
@@ -84,14 +73,12 @@ export const VariableNode = memo(({ id, data }: any) => {
       <label style={labelStyle}>Variable Name</label>
       <input 
         style={inputStyle} 
-        placeholder="e.g. user_energy"
         value={data.varName || ''} 
         onChange={(e) => updateNodeData(id, { varName: e.target.value })} 
       />
       <label style={labelStyle}>Value</label>
       <input 
         style={inputStyle} 
-        list="mod-variables"
         value={data.varValue || ''} 
         onChange={(e) => updateNodeData(id, { varValue: e.target.value })} 
       />
@@ -113,7 +100,6 @@ export const MathNode = memo(({ id, data }: any) => {
       <label style={labelStyle}>Target Variable</label>
       <input 
         style={inputStyle} 
-        list="mod-variables"
         value={data.targetVar || ''} 
         onChange={(e) => updateNodeData(id, { targetVar: e.target.value })} 
       />
@@ -135,7 +121,6 @@ export const MathNode = memo(({ id, data }: any) => {
           <label style={labelStyle}>Value</label>
           <input 
             style={inputStyle} 
-            list="mod-variables"
             value={data.value || ''} 
             onChange={(e) => updateNodeData(id, { value: e.target.value })} 
           />
@@ -159,22 +144,16 @@ export const AICallNode = memo(({ id, data }: any) => {
           value={data.systemPrompt || ''} 
           onChange={(e) => updateNodeData(id, { systemPrompt: e.target.value })} 
         />
-        <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '4px' }}>
-            Ref: {"{battle_result}, {p1_name}, {p2_name}"}
-        </div>
         <label style={labelStyle}>User Prompt</label>
         <textarea 
           style={{ ...inputStyle, height: '60px', resize: 'vertical' }} 
           value={data.userPrompt || ''} 
           onChange={(e) => updateNodeData(id, { userPrompt: e.target.value })} 
         />
-        <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '4px' }}>
-            Ref: {"{battle_result}, {p1_name}, {p2_name}"}
-        </div>
         <label style={labelStyle}>Save Response to Var</label>
         <input 
             style={inputStyle} 
-            placeholder="e.g. ai_comment"
+            placeholder="var_name"
             value={data.outputVar || ''} 
             onChange={(e) => updateNodeData(id, { outputVar: e.target.value })} 
         />
@@ -196,18 +175,12 @@ export const OverrideNode = memo(({ id, data }: any) => {
         value={data.systemPrompt || ''} 
         onChange={(e) => updateNodeData(id, { systemPrompt: e.target.value })} 
       />
-      <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '4px' }}>
-          Ref: {"{battle_result}, {p1_name}, {p2_name}"}
-      </div>
       <label style={labelStyle}>User Prompt</label>
       <textarea 
         style={{ ...inputStyle, height: '40px', resize: 'vertical' }} 
         value={data.userPrompt || ''} 
         onChange={(e) => updateNodeData(id, { userPrompt: e.target.value })} 
       />
-      <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '4px' }}>
-          Ref: {"{battle_result}, {p1_name}, {p2_name}"}
-      </div>
       <Handle type="target" position={Position.Left} id="trigger-in" />
       <Handle type="source" position={Position.Right} id="trigger-out" />
     </div>
