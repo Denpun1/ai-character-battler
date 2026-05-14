@@ -20,6 +20,7 @@ export interface Mod {
   layout_data: LayoutElement[];
   is_active: boolean;
   user_id: string;
+  config?: any;
 }
 
 export function useMods(userId: string | undefined) {
