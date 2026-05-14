@@ -18,7 +18,11 @@ export async function POST(req: Request) {
       }
     });
     
-    return NextResponse.json({ text: response.text() });
+    // In @google/genai, 'text' is a property, not a method.
+    // We use optional chaining and a fallback to satisfy TypeScript.
+    const responseText = response?.text || '';
+    
+    return NextResponse.json({ text: responseText });
   } catch (error: any) {
     console.error('[AI Call API Error]:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
