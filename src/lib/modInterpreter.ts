@@ -47,7 +47,7 @@ export class ModInterpreter {
 
       case 'Variable':
         {
-          const varName = node.data.varName || 'new_var';
+          const varName = (node.data.varName as string) || 'new_var';
           const varValue = this.resolveValue(node.data.varValue || '');
           this.variables[varName] = varValue;
         }
@@ -55,8 +55,8 @@ export class ModInterpreter {
 
       case 'Math':
         {
-            const target = node.data.targetVar;
-            const op = node.data.op || '+';
+            const target = (node.data.targetVar as string);
+            const op = (node.data.op as string) || '+';
             const value = parseFloat(this.resolveValue(node.data.value || '0'));
             const current = parseFloat(this.variables[target] || '0');
             if (op === '+') this.variables[target] = current + value;
