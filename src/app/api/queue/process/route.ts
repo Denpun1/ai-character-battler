@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
           const apiKey = process.env.GEMINI_API_KEY;
           if (!apiKey) throw new Error("GEMINI_API_KEY missing.");
           
+          const genAI = new GoogleGenAI({ apiKey });
           let finalPrompt = queueItem.system_prompt || '';
           if (finalPrompt.includes('{{CHARACTERS}}')) {
             finalPrompt = finalPrompt.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
