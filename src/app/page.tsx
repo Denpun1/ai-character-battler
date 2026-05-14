@@ -134,11 +134,13 @@ function ArenaContent() {
         // --- POST-BATTLE MOD EXECUTION ---
         const activeMod = mods.find(m => m.id === activeModId && m.is_active);
         if (activeMod) {
-          // Find the result text from history (or fetch it)
-          const { data: resultData } = await supabase.from('battle_history').select('result_text').eq('id', data.resultId).single();
-          
+          // Inject system variables
           const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
-            battle_result: resultData?.result_text || ''
+            battle_result: resultData?.result_text || '',
+            p1_name: characters.find(c => c.id === data.p1_id)?.name || 'Character 1',
+            p2_name: characters.find(c => c.id === data.p2_id)?.name || 'Character 2',
+            p1_id: data.p1_id,
+            p2_id: data.p2_id
           });
           
           interpreter.setAICallHandler(async (sys, user) => {
@@ -194,7 +196,13 @@ function ArenaContent() {
     const activeMod = mods.find(m => m.id === activeModId && m.is_active);
     if (activeMod) {
       setIsModRunning(true);
-      const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges);
+      const validSockets = entrySockets.filter(s => s.charId);
+      const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
+        p1_name: characters.find(c => c.id === validSockets[0]?.charId)?.name || '',
+        p2_name: characters.find(c => c.id === validSockets[1]?.charId)?.name || '',
+        p1_id: validSockets[0]?.charId || '',
+        p2_id: validSockets[1]?.charId || '',
+      });
       
       interpreter.setAICallHandler(async (sys, user) => {
         const res = await fetch('/api/ai/call', {

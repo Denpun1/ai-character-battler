@@ -45,11 +45,23 @@ const labelStyle: React.CSSProperties = {
   display: 'block'
 };
 
+// --- VARIABLE SUGGESTIONS ---
+const VariableDatalist = () => (
+  <datalist id="mod-variables">
+    <option value="battle_result" />
+    <option value="p1_name" />
+    <option value="p2_name" />
+    <option value="p1_id" />
+    <option value="p2_id" />
+  </datalist>
+);
+
 // --- START NODE ---
 export const StartNode = memo(({ data, id }: any) => {
     const { updateNodeData } = useReactFlow();
     return (
         <div style={{ ...nodeStyle, minWidth: '150px' }}>
+            <VariableDatalist />
             <div style={headerStyle('#059669')}>Start Trigger</div>
             <select 
                 style={inputStyle} 
@@ -73,12 +85,14 @@ export const VariableNode = memo(({ id, data }: any) => {
       <label style={labelStyle}>Variable Name</label>
       <input 
         style={inputStyle} 
+        list="mod-variables"
         value={data.varName || ''} 
         onChange={(e) => updateNodeData(id, { varName: e.target.value })} 
       />
       <label style={labelStyle}>Value</label>
       <input 
         style={inputStyle} 
+        list="mod-variables"
         value={data.varValue || ''} 
         onChange={(e) => updateNodeData(id, { varValue: e.target.value })} 
       />
@@ -100,6 +114,7 @@ export const MathNode = memo(({ id, data }: any) => {
       <label style={labelStyle}>Target Variable</label>
       <input 
         style={inputStyle} 
+        list="mod-variables"
         value={data.targetVar || ''} 
         onChange={(e) => updateNodeData(id, { targetVar: e.target.value })} 
       />
@@ -153,6 +168,7 @@ export const AICallNode = memo(({ id, data }: any) => {
         <label style={labelStyle}>Save Response to Var</label>
         <input 
             style={inputStyle} 
+            list="mod-variables"
             placeholder="var_name"
             value={data.outputVar || ''} 
             onChange={(e) => updateNodeData(id, { outputVar: e.target.value })} 
