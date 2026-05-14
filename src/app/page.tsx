@@ -136,7 +136,7 @@ function ArenaContent() {
         if (activeMod) {
           // Inject system variables
           const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
-            battle_result: resultData?.result_text || '',
+            battle_result: (resultData as any)?.result_text || '',
             p1_name: characters.find(c => c.id === data.p1_id)?.name || 'Character 1',
             p2_name: characters.find(c => c.id === data.p2_id)?.name || 'Character 2',
             p1_id: data.p1_id,
