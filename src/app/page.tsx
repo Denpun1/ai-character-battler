@@ -82,7 +82,6 @@ function ArenaContent() {
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedHistory, setSelectedHistory] = useState<any | null>(null);
-  const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewPrompt, setPreviewPrompt] = useState('');
 
@@ -98,12 +97,9 @@ function ArenaContent() {
   useEffect(() => {
     const handleStatusChange = async (e: any) => {
       const data = e.detail;
-      setNotification({ message: data.message, type: data.status === 'failed' ? 'error' : 'info' });
       if (data.status === 'completed' && data.resultId) {
-        setNotification({ message: 'Battle Complete! Check History.', type: 'success' });
         fetchHistory();
       }
-      setTimeout(() => setNotification(null), 5000);
     };
     window.addEventListener('battleStatusChange', handleStatusChange);
     return () => window.removeEventListener('battleStatusChange', handleStatusChange);
@@ -247,17 +243,7 @@ function ArenaContent() {
         <div className={`${styles.tabNavItem} ${globalTab === 'logs' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('logs')}>LOGS</div>
       </div>
 
-      {/* Notification Toast */}
-      {notification && (
-        <div style={{
-          position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
-          padding: '1rem 2rem', borderRadius: '12px', zIndex: 11000,
-          background: notification.type === 'error' ? '#dc2626' : notification.type === 'success' ? '#16a34a' : '#2563eb',
-          color: 'white', fontWeight: 'bold', boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-        }}>
-          {notification.message}
-        </div>
-      )}
+
 
       <div className={styles.viewport}>
         <div className={styles.slider} style={{ transform: getSliderTransform() }}>
