@@ -51,6 +51,7 @@ function ArenaContent() {
   const [globalTab, setGlobalTab] = useState<'arena' | 'history' | 'queue' | 'logs' | 'mods'>('arena');
   const [modSubTab, setModSubTab] = useState<'logic' | 'layout'>('logic');
   const [modElements, setModElements] = useState<LayoutElement[]>([]);
+  const [modFlowData, setModFlowData] = useState<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
   
   interface EntrySocket {
     id: string;
@@ -96,7 +97,10 @@ function ArenaContent() {
 
   useEffect(() => {
     const activeMod = mods.find(m => m.id === activeModId);
-    if (activeMod) setModElements(activeMod.layout_data || []);
+    if (activeMod) {
+      setModElements(activeMod.layout_data || []);
+      setModFlowData(activeMod.flow_data || { nodes: [], edges: [] });
+    }
   }, [activeModId, mods]);
 
   useBattleRealtime();
@@ -448,7 +452,7 @@ function ArenaContent() {
                     {mods.length === 0 && <option value="">No MODs</option>}
                 </select>
                 <Button variant="secondary" onClick={() => createMod(`New MOD ${mods.length + 1}`)}>+ New</Button>
-                <Button onClick={() => saveMod({ id: activeModId!, layout_data: modElements })}>Save All</Button>
+                <Button onClick={() => saveMod({ id: activeModId!, layout_data: modElements, flow_data: modFlowData })}>Save All</Button>
                 <div style={{ width: '1px', height: '24px', background: '#444', margin: '0 0.5rem' }} />
                 <Button variant={modSubTab === 'logic' ? 'primary' : 'secondary'} onClick={() => setModSubTab('logic')}>Logic Flow</Button>
                 <Button variant={modSubTab === 'layout' ? 'primary' : 'secondary'} onClick={() => setModSubTab('layout')}>UI Layout</Button>
@@ -456,7 +460,7 @@ function ArenaContent() {
             </header>
             
             <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '16px' }}>
-              {modSubTab === 'logic' ? <FlowEditor /> : <LayoutDesigner elements={modElements} setElements={setModElements} />}
+              {modSubTab === 'logic' ? <FlowEditor flowData={modFlowData} setFlowData={setModFlowData} /> : <LayoutDesigner elements={modElements} setElements={setModElements} />}
             </div>
           </div>
 
