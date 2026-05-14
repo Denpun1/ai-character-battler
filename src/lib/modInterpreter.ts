@@ -1,6 +1,5 @@
 
 import { Node, Edge } from '@xyflow/react';
-import { supabase } from './supabase';
 
 export interface ModVariable {
   [key: string]: any;
@@ -13,6 +12,7 @@ export class ModInterpreter {
   private edges: Edge[];
   private variables: ModVariable = {};
   private onShowUI?: (layoutData: any) => Promise<ModVariable>;
+  private onAICall?: (system: string, user: string) => Promise<string>;
 
   constructor(nodes: Node[], edges: Edge[], initialVars: ModVariable = {}) {
     this.nodes = nodes;
@@ -24,8 +24,13 @@ export class ModInterpreter {
     this.onShowUI = handler;
   }
 
-  async run() {
-    const startNode = this.nodes.find(n => n.type === 'start');
+  setAICallHandler(handler: (system: string, user: string) => Promise<string>) {
+    this.onAICall = handler;
+  }
+
+  async run(triggerType: 'pre-battle' | 'post-battle' = 'pre-battle') {
+    // Find Start node with matching trigger
+    const startNode = this.nodes.find(n => n.type === 'start' && (n.data.trigger || 'pre-battle') === triggerType);
     if (!startNode) return this.variables;
 
     await this.executeNode(startNode.id);
@@ -36,13 +41,13 @@ export class ModInterpreter {
     const node = this.nodes.find(n => n.id === nodeId);
     if (!node) return;
 
-    let nextHandle = 'trigger-out'; // Default
+    let nextHandle = 'trigger-out';
 
     const type = node.type as string;
 
     switch (type) {
       case 'start':
-        await delay(100);
+        await delay(50);
         break;
 
       case 'variable':
@@ -73,21 +78,25 @@ export class ModInterpreter {
         }
         break;
 
+      case 'aicall':
+        if (this.onAICall) {
+          const sys = this.resolveValue(node.data.systemPrompt || '');
+          const user = this.resolveValue(node.data.userPrompt || '');
+          const result = await this.onAICall(sys, user);
+          if (node.data.outputVar) {
+            this.variables[node.data.outputVar] = result;
+          }
+        }
+        break;
+
       case 'showui':
         if (this.onShowUI) {
-          // Pause execution and wait for user input from the custom layout
           const result = await this.onShowUI(node.data.layoutData);
           this.variables = { ...this.variables, ...result };
         }
         break;
-
-      case 'AI Call':
-        // Placeholder for post-battle AI calls
-        await delay(500);
-        break;
     }
 
-    // Parallel execution for multiple outgoing connections
     const outgoingEdges = this.edges.filter(e => e.source === nodeId);
     if (outgoingEdges.length > 0) {
       await Promise.all(outgoingEdges.map(edge => this.executeNode(edge.target)));
@@ -96,7 +105,6 @@ export class ModInterpreter {
 
   private resolveValue(val: any): string {
     if (typeof val !== 'string') return String(val || '');
-    // Simple {var} interpolation
     return val.replace(/\{([^}]+)\}/g, (_, name) => {
       return this.variables[name] !== undefined ? this.variables[name] : `{${name}}`;
     });

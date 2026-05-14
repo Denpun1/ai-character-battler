@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Button } from './Button';
-import { StartNode, VariableNode, MathNode, PromptNode, ShowUINode } from './ModNodes';
+import { StartNode, VariableNode, MathNode, OverrideNode, ShowUINode, AICallNode } from './ModNodes';
 
 interface FlowEditorProps {
   flowData: { nodes: Node[]; edges: Edge[] };
@@ -31,8 +31,9 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
     start: StartNode,
     variable: VariableNode,
     math: MathNode,
-    prompt: PromptNode,
+    prompt: OverrideNode,
     showui: ShowUINode,
+    aicall: AICallNode,
   }), []);
 
   const onConnect = useCallback(
@@ -54,8 +55,9 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
         'Start': 'start',
         'Variable': 'variable',
         'Math': 'math',
-        'Set Prompt': 'prompt',
-        'Show UI': 'showui'
+        'Override': 'prompt',
+        'Show UI': 'showui',
+        'AI Call': 'aicall'
     };
     
     const newNode: Node = {
@@ -63,9 +65,11 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
       type: nodeTypeMap[type] || 'default',
       data: { 
         label: type,
+        ...(type === 'Start' ? { trigger: 'pre-battle' } : {}),
         ...(type === 'Variable' ? { varName: 'myVar', varValue: '100' } : {}),
         ...(type === 'Math' ? { targetVar: 'myVar', op: '+', value: '1' } : {}),
-        ...(type === 'Set Prompt' ? { systemPrompt: '', userPrompt: '' } : {}),
+        ...(type === 'Override' ? { systemPrompt: '', userPrompt: '' } : {}),
+        ...(type === 'AI Call' ? { systemPrompt: '', userPrompt: '', outputVar: 'ai_res' } : {}),
       },
       position: { x: 100, y: 100 },
     };
@@ -91,7 +95,8 @@ export function FlowEditor({ flowData, setFlowData }: FlowEditorProps) {
             <Button variant="secondary" onClick={() => addNode('Variable')}>+ Variable</Button>
             <Button variant="secondary" onClick={() => addNode('Math')}>+ Math</Button>
             <Button variant="secondary" onClick={() => addNode('Show UI')}>+ Show UI</Button>
-            <Button variant="secondary" onClick={() => addNode('Set Prompt')}>+ Set Prompt</Button>
+            <Button variant="secondary" onClick={() => addNode('Override')}>+ Override</Button>
+            <Button variant="secondary" onClick={() => addNode('AI Call')}>+ AI Call</Button>
         </Panel>
       </ReactFlow>
     </div>

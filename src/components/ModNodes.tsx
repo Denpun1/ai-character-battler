@@ -3,7 +3,6 @@
 
 import React, { memo } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
-import styles from '../app/page.module.css';
 
 const nodeStyle: React.CSSProperties = {
   background: '#222',
@@ -11,7 +10,7 @@ const nodeStyle: React.CSSProperties = {
   border: '1px solid #444',
   borderRadius: '12px',
   padding: '12px',
-  minWidth: '200px',
+  minWidth: '220px',
   fontSize: '0.85rem',
   boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
 };
@@ -47,13 +46,23 @@ const labelStyle: React.CSSProperties = {
 };
 
 // --- START NODE ---
-export const StartNode = memo(() => (
-  <div style={{ ...nodeStyle, minWidth: '100px', textAlign: 'center' }}>
-    <div style={headerStyle('#059669')}>Start</div>
-    <div style={{ padding: '10px 0' }}>Flow Entry</div>
-    <Handle type="source" position={Position.Right} id="trigger-out" />
-  </div>
-));
+export const StartNode = memo(({ data, id }: any) => {
+    const { updateNodeData } = useReactFlow();
+    return (
+        <div style={{ ...nodeStyle, minWidth: '150px' }}>
+            <div style={headerStyle('#059669')}>Start Trigger</div>
+            <select 
+                style={inputStyle} 
+                value={data.trigger || 'pre-battle'} 
+                onChange={(e) => updateNodeData(id, { trigger: e.target.value })}
+            >
+                <option value="pre-battle">Before Battle</option>
+                <option value="post-battle">After Battle</option>
+            </select>
+            <Handle type="source" position={Position.Right} id="trigger-out" />
+        </div>
+    );
+});
 
 // --- VARIABLE NODE ---
 export const VariableNode = memo(({ id, data }: any) => {
@@ -67,12 +76,15 @@ export const VariableNode = memo(({ id, data }: any) => {
         value={data.varName || ''} 
         onChange={(e) => updateNodeData(id, { varName: e.target.value })} 
       />
-      <label style={labelStyle}>Initial Value</label>
+      <label style={labelStyle}>Value</label>
       <input 
         style={inputStyle} 
         value={data.varValue || ''} 
         onChange={(e) => updateNodeData(id, { varValue: e.target.value })} 
       />
+      <p style={{ fontSize: '0.6rem', color: '#666', marginTop: '4px' }}>
+        Tip: Use {"{battle_result}"} for result text.
+      </p>
       <Handle type="target" position={Position.Left} id="trigger-in" />
       <Handle type="source" position={Position.Right} id="trigger-out" />
     </div>
@@ -120,27 +132,55 @@ export const MathNode = memo(({ id, data }: any) => {
   );
 });
 
-// --- PROMPT NODE ---
-export const PromptNode = memo(({ id, data }: any) => {
+// --- AI CALL NODE (Separate Session) ---
+export const AICallNode = memo(({ id, data }: any) => {
+    const { updateNodeData } = useReactFlow();
+    return (
+      <div style={{ ...nodeStyle, minWidth: '300px', border: '1px solid #2563eb' }}>
+        <div style={headerStyle('#2563eb')}>AI Call (New Session)</div>
+        <label style={labelStyle}>System Prompt</label>
+        <textarea 
+          style={{ ...inputStyle, height: '60px', resize: 'vertical' }} 
+          value={data.systemPrompt || ''} 
+          onChange={(e) => updateNodeData(id, { systemPrompt: e.target.value })} 
+        />
+        <label style={labelStyle}>User Prompt</label>
+        <textarea 
+          style={{ ...inputStyle, height: '60px', resize: 'vertical' }} 
+          value={data.userPrompt || ''} 
+          onChange={(e) => updateNodeData(id, { userPrompt: e.target.value })} 
+        />
+        <label style={labelStyle}>Save Response to Var</label>
+        <input 
+            style={inputStyle} 
+            placeholder="var_name"
+            value={data.outputVar || ''} 
+            onChange={(e) => updateNodeData(id, { outputVar: e.target.value })} 
+        />
+        <Handle type="target" position={Position.Left} id="trigger-in" />
+        <Handle type="source" position={Position.Right} id="trigger-out" />
+      </div>
+    );
+});
+
+// --- OVERRIDE PROMPT NODE ---
+export const OverrideNode = memo(({ id, data }: any) => {
   const { updateNodeData } = useReactFlow();
   return (
-    <div style={{ ...nodeStyle, minWidth: '300px' }}>
-      <div style={headerStyle('#9333ea')}>Set Prompt</div>
-      <label style={labelStyle}>System Prompt Override</label>
+    <div style={{ ...nodeStyle, border: '1px solid #9333ea' }}>
+      <div style={headerStyle('#9333ea')}>Override Battle Prompt</div>
+      <label style={labelStyle}>System Prompt</label>
       <textarea 
-        style={{ ...inputStyle, height: '80px', resize: 'vertical' }} 
+        style={{ ...inputStyle, height: '40px', resize: 'vertical' }} 
         value={data.systemPrompt || ''} 
         onChange={(e) => updateNodeData(id, { systemPrompt: e.target.value })} 
       />
-      <label style={labelStyle}>User Prompt Override</label>
+      <label style={labelStyle}>User Prompt</label>
       <textarea 
-        style={{ ...inputStyle, height: '60px', resize: 'vertical' }} 
+        style={{ ...inputStyle, height: '40px', resize: 'vertical' }} 
         value={data.userPrompt || ''} 
         onChange={(e) => updateNodeData(id, { userPrompt: e.target.value })} 
       />
-      <p style={{ fontSize: '0.65rem', color: '#666', marginTop: '8px' }}>
-        Use {"{var_name}"} to inject variables.
-      </p>
       <Handle type="target" position={Position.Left} id="trigger-in" />
       <Handle type="source" position={Position.Right} id="trigger-out" />
     </div>

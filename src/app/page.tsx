@@ -130,6 +130,36 @@ function ArenaContent() {
       const data = e.detail;
       if (data.status === 'completed' && data.resultId) {
         fetchHistory();
+        
+        // --- POST-BATTLE MOD EXECUTION ---
+        const activeMod = mods.find(m => m.id === activeModId && m.is_active);
+        if (activeMod) {
+          // Find the result text from history (or fetch it)
+          const { data: resultData } = await supabase.from('battle_history').select('result_text').eq('id', data.resultId).single();
+          
+          const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
+            battle_result: resultData?.result_text || ''
+          });
+          
+          interpreter.setAICallHandler(async (sys, user) => {
+            const res = await fetch('/api/ai/call', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ systemPrompt: sys, userPrompt: user })
+            });
+            const json = await res.json();
+            return json.text || '';
+          });
+          
+          interpreter.setUIHandler(async (layoutData) => {
+             setModModalData(activeMod.layout_data);
+             return new Promise((resolve) => {
+               (window as any).resolveModUI = (vars: any) => { setModModalData(null); resolve(vars); };
+             });
+          });
+
+          await interpreter.run('post-battle');
+        }
       }
     };
     window.addEventListener('battleStatusChange', handleStatusChange);
@@ -166,6 +196,16 @@ function ArenaContent() {
       setIsModRunning(true);
       const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges);
       
+      interpreter.setAICallHandler(async (sys, user) => {
+        const res = await fetch('/api/ai/call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ systemPrompt: sys, userPrompt: user })
+        });
+        const json = await res.json();
+        return json.text || '';
+      });
+
       interpreter.setUIHandler(async (layoutData) => {
         setModModalData(activeMod.layout_data); // Show the designer layout
         return new Promise((resolve) => {
@@ -176,7 +216,7 @@ function ArenaContent() {
         });
       });
 
-      const finalVars = await interpreter.run();
+      const finalVars = await interpreter.run('pre-battle');
       setModResolvedVars(finalVars);
       setIsModRunning(false);
       // Proceed to actual queueing with resolved vars
