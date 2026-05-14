@@ -93,8 +93,7 @@ export async function POST(req: NextRequest) {
           const isGemini2 = modelName.toLowerCase().includes('gemini-2');
 
           const config: any = { 
-            temperature: queueItem.temperature || 0.7,
-            maxOutputTokens: 8192
+            temperature: queueItem.temperature || 0.7
           };
           
           if (systemPromptText.trim() !== '') {
@@ -109,28 +108,44 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          const stream = await genAI.models.generateContentStream({
-            model: modelName,
-            contents: [{ role: 'user', parts: [{ text: finalPrompt.replace(/~~[\s\S]*?~~/g, '') }] }],
-            config
-          });
+          let retries = 3;
+          let attempt = 0;
+          while (attempt < retries) {
+            try {
+              const stream = await genAI.models.generateContentStream({
+                model: modelName,
+                contents: [{ role: 'user', parts: [{ text: finalPrompt.replace(/~~[\s\S]*?~~/g, '') }] }],
+                config
+              });
 
-          let thoughtText = "";
-          let answerText = "";
-          for await (const chunk of stream) {
-            const parts = chunk.candidates?.[0]?.content?.parts || [];
-            for (const part of parts) {
-              if (part.thought) {
-                thoughtText += part.text;
-              } else if (part.text) {
-                answerText += part.text;
+              let thoughtText = "";
+              let answerText = "";
+              for await (const chunk of stream) {
+                const parts = chunk.candidates?.[0]?.content?.parts || [];
+                for (const part of parts) {
+                  if (part.thought) {
+                    thoughtText += part.text;
+                  } else if (part.text) {
+                    answerText += part.text;
+                  }
+                }
               }
+              
+              fullText = answerText;
+              if (thoughtText) {
+                 fullText = `<think>\n${thoughtText}\n</think>\n\n` + answerText;
+              }
+              break; // Success, exit retry loop
+            } catch (err: any) {
+              attempt++;
+              console.error(`[Google API Error] Attempt ${attempt}/${retries}:`, err.message);
+              // Only retry on 500 or 503 Internal Errors
+              if (attempt >= retries || (!err.message?.includes('500') && !err.message?.includes('503') && !err.message?.toLowerCase().includes('internal error'))) {
+                throw err;
+              }
+              // Wait 2s, 4s before retrying
+              await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
             }
-          }
-          
-          fullText = answerText;
-          if (thoughtText) {
-             fullText = `<think>\n${thoughtText}\n</think>\n\n` + answerText;
           }
         } else {
           fullText = await runLightningAI(queueItem, fighters);
@@ -215,21 +230,40 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
      userContent = `${userContent}\n\n### 参加者データ\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
   }
 
-  const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${lightningKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: queueItem.model || 'gemma-4-31b-it',
-      messages: [
-        { role: 'system', content: systemPromptText.replace(/~~[\s\S]*?~~/g, '') }, 
-        { role: 'user', content: userContent.replace(/~~[\s\S]*?~~/g, '') }
-      ],
-      temperature: queueItem.temperature || 0.7,
-      max_tokens: 4096,
-      stream: false
-    })
-  });
-  if (!res.ok) throw new Error("Lightning AI request failed.");
-  const data = await res.json();
-  return data.choices[0]?.message?.content || "";
+  let retries = 3;
+  let attempt = 0;
+  while (attempt < retries) {
+    try {
+      const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${lightningKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: queueItem.model || 'gemma-4-31b-it',
+          messages: [
+            { role: 'system', content: systemPromptText.replace(/~~[\s\S]*?~~/g, '') }, 
+            { role: 'user', content: userContent.replace(/~~[\s\S]*?~~/g, '') }
+          ],
+          temperature: queueItem.temperature || 0.7,
+          max_tokens: 4096,
+          stream: false
+        })
+      });
+      
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Lightning AI request failed with status ${res.status}: ${errText}`);
+      }
+      
+      const data = await res.json();
+      return data.choices[0].message.content;
+    } catch (err: any) {
+      attempt++;
+      console.error(`[Lightning API Error] Attempt ${attempt}/${retries}:`, err.message);
+      if (attempt >= retries || (!err.message?.includes('500') && !err.message?.includes('502') && !err.message?.includes('503'))) {
+        throw err;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+    }
+  }
+  return "";
 }
