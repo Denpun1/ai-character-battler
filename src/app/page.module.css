@@ -151,13 +151,13 @@
 
 .slider {
   display: flex;
-  width: 400%; /* 4 tabs */
+  width: 500%; /* 5 tabs */
   transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   align-items: flex-start;
 }
 
 .tabContent {
-  width: 25%;
+  width: 20%;
   flex-shrink: 0;
   padding: 0 1rem;
 }

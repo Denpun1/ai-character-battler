@@ -13,6 +13,8 @@ import { useUser, UserButton, SignInButton } from '@clerk/nextjs';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
+import { LayoutDesigner } from '@/components/LayoutDesigner';
+import { FlowEditor } from '@/components/FlowEditor';
 import styles from './page.module.css';
 
 // DnD Kit for Queue
@@ -44,7 +46,7 @@ function ArenaContent() {
   const { history, fetchHistory } = useHistory(user?.id);
   const { queue, isProcessing, handleDragEnd, deleteQueueItem, processQueue } = useQueue(user?.id, characters, items);
 
-  const [globalTab, setGlobalTab] = useState<'arena' | 'history' | 'queue' | 'logs'>('arena');
+  const [globalTab, setGlobalTab] = useState<'arena' | 'history' | 'queue' | 'logs' | 'mods'>('arena');
   
   interface EntrySocket {
     id: string;
@@ -83,6 +85,7 @@ function ArenaContent() {
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedHistory, setSelectedHistory] = useState<any | null>(null);
+  const [modSubTab, setModSubTab] = useState<'logic' | 'layout'>('logic');
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewPrompt, setPreviewPrompt] = useState('');
 
@@ -92,7 +95,7 @@ function ArenaContent() {
 
   useEffect(() => {
     const t = searchParams.get('tab');
-    if (t === 'history' || t === 'queue' || t === 'arena' || t === 'logs') setGlobalTab(t as any);
+    if (t === 'history' || t === 'queue' || t === 'arena' || t === 'logs' || t === 'mods') setGlobalTab(t as any);
   }, [searchParams]);
 
   useEffect(() => {
@@ -239,9 +242,10 @@ function ArenaContent() {
 
   const getSliderTransform = () => {
     if (globalTab === 'arena') return 'translateX(0%)';
-    if (globalTab === 'history') return 'translateX(-25%)';
-    if (globalTab === 'queue') return 'translateX(-50%)';
-    if (globalTab === 'logs') return 'translateX(-75%)';
+    if (globalTab === 'history') return 'translateX(-20%)';
+    if (globalTab === 'queue') return 'translateX(-40%)';
+    if (globalTab === 'logs') return 'translateX(-60%)';
+    if (globalTab === 'mods') return 'translateX(-80%)';
     return 'translateX(0%)';
   };
 
@@ -253,6 +257,7 @@ function ArenaContent() {
         <div className={`${styles.tabNavItem} ${globalTab === 'history' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('history')}>HISTORY</div>
         <div className={`${styles.tabNavItem} ${globalTab === 'queue' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('queue')}>QUEUE</div>
         <div className={`${styles.tabNavItem} ${globalTab === 'logs' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('logs')}>LOGS</div>
+        <div className={`${styles.tabNavItem} ${globalTab === 'mods' ? styles.tabNavItemActive : ''}`} onClick={() => setGlobalTab('mods')}>MOD</div>
       </div>
 
 
@@ -418,6 +423,21 @@ function ArenaContent() {
                 );
               })}
               {appLogs.length === 0 && <div className={styles.emptyState}>No logs found.</div>}
+            </div>
+          </div>
+
+          {/* TAB 5: MODS */}
+          <div className={styles.tabContent}>
+            <header className={styles.header}>
+              <h1 className={styles.title}>MOD Editor</h1>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <Button variant={modSubTab === 'logic' ? 'primary' : 'secondary'} onClick={() => setModSubTab('logic')}>Logic Flow</Button>
+                <Button variant={modSubTab === 'layout' ? 'primary' : 'secondary'} onClick={() => setModSubTab('layout')}>UI Layout</Button>
+              </div>
+            </header>
+            
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '16px' }}>
+              {modSubTab === 'logic' ? <FlowEditor /> : <LayoutDesigner />}
             </div>
           </div>
 
