@@ -410,7 +410,14 @@ function ArenaContent() {
                 <div className={styles.formGroup}><label>API Provider</label><select value={provider} onChange={e => setProvider(e.target.value as any)} className={styles.input}><option value="google">Google AI</option><option value="lightning">Lightning AI</option></select></div>
                 <div className={styles.formGroup}><label>Model</label><input type="text" value={model} onChange={e => setModel(e.target.value)} className={styles.input} required /></div>
                 <div className={styles.formGroup}><label>Temperature ({temperature})</label><input type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} /></div>
-                <div className={styles.formGroup}><label>Instruction (System Prompt)</label><textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '120px' }} required /></div>
+                <div className={styles.formGroup}>
+                  <label>Instruction (System Prompt)</label>
+                  <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} className={styles.textarea} style={{ minHeight: '180px' }} required />
+                  <div style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem', lineHeight: '1.4' }}>
+                    * <code>{`{{CHARACTERS}}`}</code> と記述した部分にキャラクターデータが自動挿入されます。<br/>
+                    * システムが勝者を自動記録するためには、プロンプトの最後に <strong>「勝者: [キャラクター名]」</strong> と出力させる指示を含めてください。
+                  </div>
+                </div>
 
                 <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>

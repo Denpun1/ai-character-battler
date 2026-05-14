@@ -69,8 +69,12 @@ export async function POST(req: NextRequest) {
           const apiKey = process.env.GEMINI_API_KEY;
           if (!apiKey) throw new Error("GEMINI_API_KEY missing.");
           
-          const genAI = new GoogleGenAI({ apiKey });
-          const finalPrompt = `${queueItem.system_prompt}\n\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
+          let finalPrompt = queueItem.system_prompt || '';
+          if (finalPrompt.includes('{{CHARACTERS}}')) {
+            finalPrompt = finalPrompt.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
+          } else {
+            finalPrompt = `${finalPrompt}\n\n### 参加者データ\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
+          }
 
           const isGemma4 = modelName.toLowerCase().includes('gemma-4');
           const isGemini3 = modelName.toLowerCase().includes('gemini-3');
@@ -177,14 +181,22 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
   const lightningKey = process.env.LIGHTNING_API_KEY;
   if (!lightningKey) throw new Error("LIGHTNING_API_KEY is missing.");
 
+  let systemContent = queueItem.system_prompt || '';
+  const hasCharactersPlaceholder = systemContent.includes('{{CHARACTERS}}');
+  if (hasCharactersPlaceholder) {
+     systemContent = systemContent.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
+  }
+
   const res = await fetch('https://models.lightning.ai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${lightningKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: queueItem.model || 'gemma-4-31b-it',
       messages: [
-        { role: 'system', content: queueItem.system_prompt || '' }, 
-        { role: 'user', content: `${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。` }
+        { role: 'system', content: systemContent }, 
+        { role: 'user', content: hasCharactersPlaceholder 
+            ? '対戦を開始してください。' 
+            : `${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。` }
       ],
       temperature: queueItem.temperature || 0.7,
       max_tokens: 4096,

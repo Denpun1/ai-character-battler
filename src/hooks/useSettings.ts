@@ -20,7 +20,12 @@ export interface SettingPreset extends Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  systemPrompt: '',
+  systemPrompt: `以下のキャラクターによる対戦シミュレーション（物語や実況）を自由なテキスト形式で出力してください。
+
+### 参加者データ
+{{CHARACTERS}}
+
+対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`,
   model: 'gemma-4-31b-it',
   temperature: 0.7,
   showThinking: false,
