@@ -41,8 +41,10 @@ export function useBattleRealtime() {
     if (!user?.id) return;
 
     try {
-      const channel = supabase
-        .channel(`battle_queue_user_${user.id}`)
+      const channelName = `battle_queue_user_${user.id}`;
+      const channel = supabase.channel(channelName);
+      
+      channel
         .on(
           'postgres_changes',
           {
