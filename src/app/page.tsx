@@ -12,6 +12,7 @@ import { useQueue } from '@/hooks/useQueue';
 import { useUser, UserButton, SignInButton } from '@clerk/nextjs';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { useMods, LayoutElement } from '@/hooks/useMods';
 import { supabase } from '@/lib/supabase';
 import { LayoutDesigner } from '@/components/LayoutDesigner';
 import { FlowEditor } from '@/components/FlowEditor';
@@ -45,8 +46,11 @@ function ArenaContent() {
   
   const { history, fetchHistory } = useHistory(user?.id);
   const { queue, isProcessing, handleDragEnd, deleteQueueItem, processQueue } = useQueue(user?.id, characters, items);
+  const { mods, activeModId, setActiveModId, saveMod, createMod } = useMods(user?.id);
 
   const [globalTab, setGlobalTab] = useState<'arena' | 'history' | 'queue' | 'logs' | 'mods'>('arena');
+  const [modSubTab, setModSubTab] = useState<'logic' | 'layout'>('logic');
+  const [modElements, setModElements] = useState<LayoutElement[]>([]);
   
   interface EntrySocket {
     id: string;
@@ -85,11 +89,15 @@ function ArenaContent() {
   const [provider, setProvider] = useState<'google' | 'lightning'>('google');
   const [newPresetName, setNewPresetName] = useState('');
   const [selectedHistory, setSelectedHistory] = useState<any | null>(null);
-  const [modSubTab, setModSubTab] = useState<'logic' | 'layout'>('logic');
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewPrompt, setPreviewPrompt] = useState('');
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+
+  useEffect(() => {
+    const activeMod = mods.find(m => m.id === activeModId);
+    if (activeMod) setModElements(activeMod.layout_data || []);
+  }, [activeModId, mods]);
 
   useBattleRealtime();
 
@@ -430,14 +438,25 @@ function ArenaContent() {
           <div className={styles.tabContent}>
             <header className={styles.header}>
               <h1 className={styles.title}>MOD Editor</h1>
-              <div style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <select 
+                    value={activeModId || ''} 
+                    onChange={e => setActiveModId(e.target.value)}
+                    style={{ background: '#000', color: 'white', border: '1px solid #444', padding: '0.5rem', borderRadius: '8px' }}
+                >
+                    {mods.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    {mods.length === 0 && <option value="">No MODs</option>}
+                </select>
+                <Button variant="secondary" onClick={() => createMod(`New MOD ${mods.length + 1}`)}>+ New</Button>
+                <Button onClick={() => saveMod({ id: activeModId!, layout_data: modElements })}>Save All</Button>
+                <div style={{ width: '1px', height: '24px', background: '#444', margin: '0 0.5rem' }} />
                 <Button variant={modSubTab === 'logic' ? 'primary' : 'secondary'} onClick={() => setModSubTab('logic')}>Logic Flow</Button>
                 <Button variant={modSubTab === 'layout' ? 'primary' : 'secondary'} onClick={() => setModSubTab('layout')}>UI Layout</Button>
               </div>
             </header>
             
             <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '16px' }}>
-              {modSubTab === 'logic' ? <FlowEditor /> : <LayoutDesigner />}
+              {modSubTab === 'logic' ? <FlowEditor /> : <LayoutDesigner elements={modElements} setElements={setModElements} />}
             </div>
           </div>
 

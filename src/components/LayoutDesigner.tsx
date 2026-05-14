@@ -16,8 +16,12 @@ interface LayoutElement {
   binding?: string; // Var name from MOD flow
 }
 
-export function LayoutDesigner() {
-  const [elements, setElements] = useState<LayoutElement[]>([]);
+interface LayoutDesignerProps {
+  elements: LayoutElement[];
+  setElements: (elements: LayoutElement[]) => void;
+}
+
+export function LayoutDesigner({ elements, setElements }: LayoutDesignerProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const addElement = (type: LayoutElement['type']) => {
