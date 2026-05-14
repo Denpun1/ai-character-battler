@@ -134,6 +134,9 @@ function ArenaContent() {
         // --- POST-BATTLE MOD EXECUTION ---
         const activeMod = mods.find(m => m.id === activeModId && m.is_active);
         if (activeMod) {
+          // Find the result text from history (or fetch it)
+          const { data: resultData } = await supabase.from('battle_history').select('result_text').eq('id', data.resultId).single();
+          
           // Inject system variables
           const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
             battle_result: (resultData as any)?.result_text || '',
