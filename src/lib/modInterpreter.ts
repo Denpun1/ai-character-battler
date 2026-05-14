@@ -87,8 +87,8 @@ export class ModInterpreter {
     }
   }
 
-  private resolveValue(val: string): string {
-    if (typeof val !== 'string') return val;
+  private resolveValue(val: any): string {
+    if (typeof val !== 'string') return String(val || '');
     // Simple {var} interpolation
     return val.replace(/\{([^}]+)\}/g, (_, name) => {
       return this.variables[name] !== undefined ? this.variables[name] : `{${name}}`;
