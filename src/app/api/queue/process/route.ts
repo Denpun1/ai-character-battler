@@ -82,10 +82,17 @@ export async function POST(req: NextRequest) {
           } catch(e) {}
 
           let finalPrompt = userPromptText;
+          if (systemPromptText.includes('{{CHARACTERS}}')) {
+             systemPromptText = systemPromptText.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
+          }
+          
           if (finalPrompt.includes('{{CHARACTERS}}')) {
             finalPrompt = finalPrompt.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
           } else {
-            finalPrompt = `${finalPrompt}\n\n### 参加者データ\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
+            // Only append characters to user prompt if they weren't injected into the system prompt either
+            if (!systemPromptText.includes(fighters[0]?.name || '')) {
+              finalPrompt = `${finalPrompt}\n\n### 参加者データ\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
+            }
           }
 
           const isGemma4 = modelName.toLowerCase().includes('gemma-4');
@@ -223,11 +230,17 @@ async function runLightningAI(queueItem: any, fighters: any[]) {
   } catch(e) {}
 
   let userContent = userPromptText;
-  const hasCharactersPlaceholder = userContent.includes('{{CHARACTERS}}');
-  if (hasCharactersPlaceholder) {
+  
+  if (systemPromptText.includes('{{CHARACTERS}}')) {
+      systemPromptText = systemPromptText.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
+  }
+  
+  if (userContent.includes('{{CHARACTERS}}')) {
      userContent = userContent.replace('{{CHARACTERS}}', buildPrompt(queueItem, fighters));
   } else {
-     userContent = `${userContent}\n\n### 参加者データ\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
+     if (!systemPromptText.includes(fighters[0]?.name || '')) {
+       userContent = `${userContent}\n\n### 参加者データ\n${buildPrompt(queueItem, fighters)}\n\n対戦の最後に必ず「勝者: [キャラクター名]」と記載してください。`.trim();
+     }
   }
 
   let retries = 3;
