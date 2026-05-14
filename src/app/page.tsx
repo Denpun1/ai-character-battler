@@ -97,12 +97,6 @@ function ArenaContent() {
   const [modResolvedVars, setModResolvedVars] = useState<any>({});
   const [previewPrompt, setPreviewPrompt] = useState('');
 
-  const modsRef = useRef(mods);
-  const activeModIdRef = useRef(activeModId);
-
-  useEffect(() => { modsRef.current = mods; }, [mods]);
-  useEffect(() => { activeModIdRef.current = activeModId; }, [activeModId]);
-
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useEffect(() => {
@@ -138,17 +132,13 @@ function ArenaContent() {
         fetchHistory();
         
         // --- POST-BATTLE MOD EXECUTION ---
-        const currentMods = modsRef.current;
-        const currentActiveId = activeModIdRef.current;
-        const activeMod = currentMods.find(m => m.id === currentActiveId && m.is_active);
-        
+        const activeMod = mods.find(m => m.id === activeModId && m.is_active);
         if (activeMod) {
-          // Wait a bit for history to be written
-          await new Promise(r => setTimeout(r, 1000));
-          const { data: resultData } = await supabase.from('battle_history').select('result_text').eq('id', data.resultId).single();
+          // Find the result text from history (or fetch it)
+          const { data: resultData } = await supabase.from('battle_history').select('log_text').eq('id', data.resultId).single();
           
           const interpreter = new ModInterpreter(activeMod.flow_data.nodes, activeMod.flow_data.edges, {
-            battle_result: resultData?.result_text || ''
+            battle_result: resultData?.log_text || ''
           });
           
           interpreter.setAICallHandler(async (sys, user) => {
@@ -174,7 +164,7 @@ function ArenaContent() {
     };
     window.addEventListener('battleStatusChange', handleStatusChange);
     return () => window.removeEventListener('battleStatusChange', handleStatusChange);
-  }, [fetchHistory]); // modsRef/activeModIdRef don't need to be in deps
+  }, [fetchHistory]);
 
   const openCharModal = async (id?: string) => {
     if (id) {
