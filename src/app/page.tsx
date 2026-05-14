@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useSettings } from '@/hooks/useSettings';
@@ -39,6 +39,7 @@ function ArenaContent() {
   const { settings, presets, isLoaded: settingsLoaded, saveSettings, createPreset, deletePreset } = useSettings();
   const { isLoaded: isAuthLoaded, user, isSignedIn } = useUser();
   const searchParams = useSearchParams();
+  const router = useRouter();
   
   const { history, fetchHistory } = useHistory(user?.id);
   const { queue, isProcessing, handleDragEnd, deleteQueueItem, processQueue } = useQueue(user?.id, characters, items);
@@ -93,6 +94,17 @@ function ArenaContent() {
     const t = searchParams.get('tab');
     if (t === 'history' || t === 'queue' || t === 'arena' || t === 'logs') setGlobalTab(t as any);
   }, [searchParams]);
+
+  useEffect(() => {
+    const rid = searchParams.get('resultId');
+    if (globalTab === 'history' && rid && history.length > 0) {
+      const target = history.find((h: any) => h.id === rid);
+      if (target) {
+        setSelectedHistory(target);
+        router.replace('/?tab=history');
+      }
+    }
+  }, [globalTab, searchParams, history, router]);
 
   useEffect(() => {
     const handleStatusChange = async (e: any) => {

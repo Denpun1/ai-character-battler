@@ -87,7 +87,7 @@ export function NotificationContainer() {
 
           {t.resultId && (
             <Link 
-              href={`/?tab=history`} 
+              href={`/?tab=history&resultId=${t.resultId}`} 
               style={{ 
                 marginTop: '4px',
                 color: 'white', 
