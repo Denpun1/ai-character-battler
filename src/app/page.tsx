@@ -217,16 +217,6 @@ function ArenaContent() {
     }
   };
 
-  if (!charLoaded || !itemsLoaded || !settingsLoaded || !isAuthLoaded) return <div style={{ padding: '2rem' }}>Loading...</div>;
-
-  const getSliderTransform = () => {
-    if (globalTab === 'arena') return 'translateX(0%)';
-    if (globalTab === 'history') return 'translateX(-25%)';
-    if (globalTab === 'queue') return 'translateX(-50%)';
-    if (globalTab === 'logs') return 'translateX(-75%)';
-    return 'translateX(0%)';
-  };
-  
   const [appLogs, setAppLogs] = useState<any[]>([]);
   const fetchLogs = async () => {
     if (!user?.id) return;
@@ -236,6 +226,16 @@ function ArenaContent() {
   useEffect(() => {
     if (globalTab === 'logs') fetchLogs();
   }, [globalTab, user?.id]);
+
+  if (!charLoaded || !itemsLoaded || !settingsLoaded || !isAuthLoaded) return <div style={{ padding: '2rem' }}>Loading...</div>;
+
+  const getSliderTransform = () => {
+    if (globalTab === 'arena') return 'translateX(0%)';
+    if (globalTab === 'history') return 'translateX(-25%)';
+    if (globalTab === 'queue') return 'translateX(-50%)';
+    if (globalTab === 'logs') return 'translateX(-75%)';
+    return 'translateX(0%)';
+  };
 
   return (
     <div className={styles.container}>
