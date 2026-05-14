@@ -216,9 +216,9 @@ function buildPrompt(queueItem: any, fighters: any[]) {
   let p = "";
   fighters.forEach((f) => {
     const itemsStr = f.equippedItems?.length > 0 
-      ? `\n装備アイテム:\n` + f.equippedItems.map((item: any) => `・${item.name} - ${item.description}`).join('\n')
+      ? `\n装備アイテム:\n` + f.equippedItems.map((item: any) => `・${item.name} - ${item.description || ''}`).join('\n')
       : '';
-    p += `\n名前: ${f.name}\n説明: ${f.description}${itemsStr}\n`;
+    p += `\n名前: ${f.name || '不明'}\n説明: ${f.skills || '特になし'}${itemsStr}\n`;
   });
   return p.trim();
 }
